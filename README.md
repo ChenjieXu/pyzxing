@@ -1,6 +1,6 @@
 # pyzxing
 
-python-zxing does not work properly and is out of maintenance. So I decide to create this repository so that Pythoneer can take advantage of zxing library with minimum cost.
+python-zxing does not work properly and is out of maintenance. So I decide to create this repository so that Pythoneers can take advantage of zxing library with minimum cost.
 
 ## Install Zxing Module
 
@@ -22,3 +22,7 @@ output = reader.decode('/PATH/TO/FILE')
 print(output)
 ```
 
+## TODOS
+enable downloading compiled jar file
+parse raw output into structured format
+enable read multiple barcodes in a picture using GenericMultipleBarcodeReader class 
