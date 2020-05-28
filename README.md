@@ -24,5 +24,8 @@ print(output)
 
 ## TODOS
 enable downloading compiled jar file
+
 parse raw output into structured format
+
 enable read multiple barcodes in a picture using GenericMultipleBarcodeReader class 
+
