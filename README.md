@@ -1,6 +1,6 @@
 # pyzxing
 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/ChenjieXu/pyzxing)
+![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/chenjiexu/pyzxing?include_prereleases)
 ![PyPI](https://img.shields.io/pypi/v/pyzxing)
 ![Codacy grade](https://img.shields.io/codacy/grade/353f276d2073445aab7af3e32b0d503a)
 
