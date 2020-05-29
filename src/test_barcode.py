@@ -7,35 +7,35 @@ class TestBarCodeReader(unittest.TestCase):
         self.reader = BarCodeReader()
 
     def test_codabar(self):
-        basename = 'test/resources/codabar'
+        basename = 'src/resources/codabar'
         result = self.reader.decode(basename + '.png')
         with open(basename+'.txt', 'r') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result['parsed'], gt)
 
     def test_code39(self):
-        basename = 'test/resources/code39'
+        basename = 'src/resources/code39'
         result = self.reader.decode(basename + '.png')
         with open(basename+'.txt', 'r') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result['parsed'], gt)
 
     def test_code128(self):
-        basename = 'test/resources/code128'
+        basename = 'src/resources/code128'
         result = self.reader.decode(basename + '.png')
         with open(basename+'.txt', 'r') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result['parsed'], gt)
 
     def test_pdf417(self):
-        basename = 'test/resources/pdf417'
+        basename = 'src/resources/pdf417'
         result = self.reader.decode(basename + '.png')
         with open(basename+'.txt', 'r') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result['parsed'], gt)
 
     def test_qrcode(self):
-        basename = 'test/resources/qrcode'
+        basename = 'src/resources/qrcode'
         result = self.reader.decode(basename + '.png')
         with open(basename+'.txt', 'r') as fp:
             gt = fp.readline().strip()
