@@ -1,8 +1,8 @@
 import os
+import ast
 import glob
 import urllib.request
 import shutil
-import logging
 import subprocess
 
 jar_filename = "javase-3.4.1-SNAPSHOT-jar-with-dependencies.jar"
@@ -15,7 +15,7 @@ class BarCodeReader():
     lib_path = ""
 
     def __init__(self):
-        """Prepare necessary jar file"""
+        """Prepare necessary jar file."""
         res = glob.glob(
             jar_path + "javase-*-jar-with-dependencies.jar")
         if res:
@@ -29,7 +29,8 @@ class BarCodeReader():
                 print("Local jar file does not exist. Downloading...")
                 if not os.path.exists(jar_path):
                     os.makedirs(jar_path)
-                with urllib.request.urlopen(download_url) as resp, open(save_path, 'wb') as out:
+                req = urllib.request.Request(download_url)
+                with urllib.request.urlopen(req) as resp, open(save_path, 'wb') as out:
                     shutil.copyfileobj(resp, out)
                 print("Download completed.")
             self.lib_path = save_path
@@ -43,8 +44,10 @@ class BarCodeReader():
             cmd, stdout=subprocess.PIPE, universal_newlines=True).communicate()
         return self._parse(stdout.splitlines())
 
-    def _parse(self, lines):
+    @staticmethod
+    def _parse(lines):
         """parse stdout and return structured result
+
             raw stdout looks like this:
             file://02.png (format: CODABAR, type: TEXT):
             Raw result:
@@ -65,7 +68,8 @@ class BarCodeReader():
 
             result['raw'] = lines[2]
             result['parsed'] = lines[4]
-            result['points'] = [eval(x.split(' ')[-1]) for x in lines[6:] if x]
+            result['points'] = [ast.literal_eval(
+                x.split(' ')[-1]) for x in lines[6:] if x]
 
             return result
         else:
