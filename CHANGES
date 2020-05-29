@@ -1,2 +1,5 @@
 0.1 (28 May 2020)
 - Initial release
+0.2 (29 May 2020)
+- parse raw output into structured result
+- enable using pre-compiled jar file
