@@ -26,7 +26,7 @@ pip install pyzxing
 A ready-to-go jar file is available with release, but I can not guarantee that this file will work properly on your PC. You may run test script before building ZXing. Pyzxing will download compiled Jar file automatically and call unit test. 
 
 ```bash
-python test/barcode_test.py
+python -m unittest src.test_barcode
 ```
 
 If failed, build ZXing using following commands.

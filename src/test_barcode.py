@@ -1,8 +1,22 @@
+import os
+import shutil
 import unittest
 from pyzxing import BarCodeReader
+from pyzxing.reader import jar_filename, jar_path
 
 
-class TestBarCodeReader(unittest.TestCase):
+class TestCreateBarCodeReader(unittest.TestCase):
+    def test_create_reader_no_local(self):
+        os.remove(jar_path+jar_filename)
+        self.reader = BarCodeReader()
+
+    def test_create_reader_with_local(self):
+        shutil.rmtree(jar_path)
+        self.reader = BarCodeReader()
+        self.reader = BarCodeReader()
+
+
+class TestBarCodeReaderDecode(unittest.TestCase):
     def setUp(self):
         self.reader = BarCodeReader()
 
@@ -41,6 +55,7 @@ class TestBarCodeReader(unittest.TestCase):
             gt = fp.readline().strip()
         self.assertEqual(result['parsed'], gt)
 
-
-if __name__ == '__main__':
-    unittest.main()
+    def test_nonexistfile(self):
+        basename = 'src/resources/nonexistfile'
+        result = self.reader.decode(basename + '.png')
+        self.assertEqual(result, None)
