@@ -6,7 +6,7 @@ with open('README.md', encoding="utf8") as f:
 setup(
     name="pyzxing",
     version="0.1",
-    url="https://github.com/ChenjieXu/pyzing",
+    url="https://github.com/ChenjieXu/pyzxing",
     description="Python wrapper for ZXing JAVA library",
     long_description=readme,
     long_description_content_type="text/markdown",
