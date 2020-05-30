@@ -41,7 +41,7 @@ class BarCodeReader():
             return None
         cmd = ' '.join([self.command, self.lib_path, filename])
         (stdout, _) = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, universal_newlines=True).communicate()
+            cmd, stdout=subprocess.PIPE, universal_newlines=True, shell=True).communicate()
         return self._parse(stdout.splitlines())
 
     @staticmethod

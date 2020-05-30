@@ -1,6 +1,3 @@
-# Doesn't run decode unit test in Travis CI.
-# It seems that subporcess command cannot get files because of
-# environment settings.
 language: java
 os: linux
 dist: bionic
@@ -18,5 +15,4 @@ install:
   - sudo pip3 install setuptools
   - sudo python3 setup.py install
 script:
-  - sudo python3 -m unittest src.test_create_reader
-  - java -jar zxing/javase/target/javase-3.4.1-SNAPSHOT-jar-with-dependencies.jar src/resources/codabar.png
+  - sudo python3 -m unittest discover
