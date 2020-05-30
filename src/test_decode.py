@@ -45,3 +45,8 @@ class TestBarCodeReaderDecode(unittest.TestCase):
         basename = 'src/resources/nonexistfile'
         result = self.reader.decode(basename + '.png')
         self.assertEqual(result, None)
+
+    def test_nobarcodefile(self):
+        basename = 'src/resources/ou'
+        result = self.reader.decode(basename + '.jpg')
+        self.assertEqual(result, None)
