@@ -1,5 +1,3 @@
-import os
-import shutil
 import unittest
 from pyzxing import BarCodeReader
 
