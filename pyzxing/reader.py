@@ -39,6 +39,7 @@ class BarCodeReader():
     def decode(self, filename_pattern):
         filenames = glob.glob(filename_pattern)
         if len(filenames) == 0:
+            print("File not found!")
             results = None
 
         elif len(filenames) == 1:
