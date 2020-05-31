@@ -39,13 +39,19 @@ class BarCodeReader():
         if not os.path.exists(filename):
             print("File dose not exist!")
             return None
-        cmd = ' '.join([self.command, self.lib_path, filename])
+        cmd = ' '.join([self.command, self.lib_path, filename, '--multi'])
         (stdout, _) = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, universal_newlines=True, shell=True).communicate()
-        return self._parse(stdout.splitlines())
+        lines = stdout.splitlines()
+        separator_idx = [i for i in range(
+            len(lines)) if lines[i][:4] == 'file'] + [len(lines)]
+
+        result = [self._parse_single(
+            lines[separator_idx[i]:separator_idx[i+1]]) for i in range(len(separator_idx)-1)]
+        return result
 
     @staticmethod
-    def _parse(lines):
+    def _parse_single(lines):
         """parse stdout and return structured result
 
             raw stdout looks like this:
