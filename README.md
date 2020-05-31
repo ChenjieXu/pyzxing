@@ -6,6 +6,13 @@
 
 A Python wrapper of [ZXing library](https://github.com/zxing/zxing). python-zxing does not work properly and is out of maintenance. So I decide to create this repository so that Pythoneers can take advantage of ZXing library with minimum effort.
 
+## Features
+
+- Super easy to get hands on ZXing with Python
+- Structured outputs
+- Scan multiple barcodes in one picture
+- Scan multiple pictures in parallel, which seepd up 77%.
+
 ## Installation
 Installing from [Github source](https://github.com/ChenjieXu/pyzxing.git) is recommended :
 
@@ -23,7 +30,7 @@ pip install pyzxing
 
 ## Build ZXing Library
 
-A ready-to-go jar file is available with release, but I can not guarantee that this file will work properly on your PC. You may run test script before building ZXing. Pyzxing will download compiled Jar file automatically and call unit test. 
+A ready-to-go jar file is available with release, but I can not guarantee that this file will work properly on your PC. You may run test script before building ZXing. Pyzxing will download compiled Jar file automatically and call unit test. For those who haven't installed Java, I strongly recommend you to install openjdk8.
 
 ```bash
 python -m unittest src.test_barcode
@@ -45,10 +52,8 @@ mvn -DskipTests package assembly:single
 ```python
 from pyzxing import BarCodeReader
 reader = BarCodeReader()
-output = reader.decode('/PATH/TO/FILE')
-print(output)
+results = reader.decode('/PATH/TO/FILE')
+# Or file pattern for multiple files
+results = reader.decode('/PATH/TO/FILES/*.png')
+print(results)
 ```
-
-## TODOS
-enable read multiple barcodes in a picture using GenericMultipleBarcodeReader class 
-decode multiple files using joblib
