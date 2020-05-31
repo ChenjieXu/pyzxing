@@ -57,3 +57,9 @@ results = reader.decode('/PATH/TO/FILE')
 results = reader.decode('/PATH/TO/FILES/*.png')
 print(results)
 ```
+
+Or you may simply call it from command line
+
+```bash
+python scanner.py -f /PATH/TO/FILE
+```
