@@ -2,10 +2,12 @@ from setuptools import setup, find_packages
 
 with open('README.md', encoding="utf8") as f:
     readme = f.read()
+with open('requirements.txt') as f:
+    reqs = f.read()
 
 setup(
     name="pyzxing",
-    version="0.2",
+    version="0.3",
     url="https://github.com/ChenjieXu/pyzxing",
     description="Python wrapper for ZXing Java library",
     long_description=readme,
@@ -23,4 +25,5 @@ setup(
         'Intended Audience :: Developers',
         'Intended Audience :: Science/Research',
     ],
+    install_requires=reqs.strip().split('\n'),
 )

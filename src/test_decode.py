@@ -1,3 +1,5 @@
+import os
+import glob
 import unittest
 from pyzxing import BarCodeReader
 
@@ -49,7 +51,7 @@ class TestBarCodeReaderDecode(unittest.TestCase):
     def test_nobarcodefile(self):
         basename = 'src/resources/ou'
         result = self.reader.decode(basename + '.jpg')
-        self.assertEqual(result[0], None)
+        self.assertEqual(result[0].get('parsed', None), None)
 
     def test_multibarcodes(self):
         basename = 'src/resources/multibarcodes'
@@ -60,3 +62,18 @@ class TestBarCodeReaderDecode(unittest.TestCase):
             gt = [line.strip() for line in fp.readlines()]
 
         self.assertEqual(set(result_string), set(gt))
+
+    def test_multifiles(self):
+        filename_pattern = 'src/resources/*.png'
+        results = self.reader.decode(filename_pattern)
+        results_string = [x['parsed'] for result in results for x in result]
+
+        filenames = glob.glob(filename_pattern)
+        annofiles = [os.path.splitext(filename.replace(
+            '\\', '/'))[0] + '.txt' for filename in filenames]
+        gt = []
+        for annofile in annofiles:
+            with open(annofile, 'r') as fp:
+                gt.append(fp.readline().strip())
+
+        self.assertEqual(set(results_string), set(gt))
