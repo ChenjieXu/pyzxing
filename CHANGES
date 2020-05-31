@@ -3,3 +3,6 @@
 0.2 (29 May 2020)
 - parse raw output into structured result
 - enable using pre-compiled jar file
+0.2.1
+- support read multiple barcodes in a picture
+- fix Linux runtime error
