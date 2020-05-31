@@ -4,6 +4,7 @@ import glob
 import urllib.request
 import shutil
 import subprocess
+from joblib import Parallel, delayed
 
 jar_filename = "javase-3.4.1-SNAPSHOT-jar-with-dependencies.jar"
 jar_url = "https://github.com/ChenjieXu/content/raw/master/"
@@ -35,10 +36,21 @@ class BarCodeReader():
                 print("Download completed.")
             self.lib_path = save_path
 
-    def decode(self, filename):
-        if not os.path.exists(filename):
-            print("File dose not exist!")
-            return None
+    def decode(self, filename_pattern):
+        filenames = glob.glob(filename_pattern)
+        if len(filenames) == 0:
+            results = None
+
+        elif len(filenames) == 1:
+            results = self._decode(filenames[0].replace('\\', '/'))
+
+        else:
+            results = Parallel(n_jobs=-1)(delayed(self._decode)
+                                          (filename.replace('\\', '/')) for filename in filenames)
+
+        return results
+
+    def _decode(self, filename):
         cmd = ' '.join([self.command, self.lib_path, filename, '--multi'])
         (stdout, _) = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, universal_newlines=True, shell=True).communicate()
@@ -64,9 +76,10 @@ class BarCodeReader():
             Point 0: (50.0,202.0)
             Point 1: (655.0,202.0)
         """
-        if len(lines) > 1:
-            result = {}
+        result = {}
+        result['filename'] = lines[0].split(' ', 1)[0]
 
+        if len(lines) > 1:
             lines[0] = lines[0].split(' ', 1)[1]
             for ch in '():,':
                 lines[0] = lines[0].replace(ch, '')
@@ -77,6 +90,4 @@ class BarCodeReader():
             result['points'] = [ast.literal_eval(
                 x.split(' ')[-1]) for x in lines[6:] if x]
 
-            return result
-        else:
-            return None
+        return result

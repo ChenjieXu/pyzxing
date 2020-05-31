@@ -12,7 +12,7 @@ jobs:
       env:
         - JACOCO=-Pjacoco
 install:
-  - sudo pip3 install setuptools
+  - sudo pip3 install -r requirements.txt
   - sudo python3 setup.py install
 script:
   - sudo python3 -m unittest discover
