@@ -11,7 +11,7 @@ A Python wrapper of [ZXing library](https://github.com/zxing/zxing). python-zxin
 - Super easy to get hands on ZXing with Python
 - Structured outputs
 - Scan multiple barcodes in one picture
-- Scan multiple pictures in parallel, which seepd up 77%.
+- Scan multiple pictures in parallel, which speeds up 77%.
 
 ## Installation
 Installing from [Github source](https://github.com/ChenjieXu/pyzxing.git) is recommended :
