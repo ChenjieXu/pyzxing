@@ -1,4 +1,6 @@
 # pyzxing
+English | [简体中文](README_CN.md)
+
 [![Travis (.org)](https://img.shields.io/travis/ChenjieXu/pyzxing)](https://travis-ci.org/github/ChenjieXu/pyzxing)
 [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/chenjiexu/pyzxing?include_prereleases)](https://github.com/ChenjieXu/pyzxing/releases/latest)
 [![PyPI](https://img.shields.io/pypi/v/pyzxing)](https://pypi.org/project/pyzxing/)
@@ -11,7 +13,7 @@ A Python wrapper of [ZXing library](https://github.com/zxing/zxing). python-zxin
 - Super easy to get hands on ZXing with Python
 - Structured outputs
 - Scan multiple barcodes in one picture
-- Scan multiple pictures in parallel, which speeds up 77%.
+- Scan multiple pictures in parallel, which speeds up 77%
 
 ## Installation
 Installing from [Github source](https://github.com/ChenjieXu/pyzxing.git) is recommended :
