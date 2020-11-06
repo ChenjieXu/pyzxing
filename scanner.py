@@ -1,4 +1,3 @@
-
 import argparse
 from pyzxing import BarCodeReader
 
@@ -16,8 +15,9 @@ def main(args):
         if isinstance(results[0], dict):
             results_string = [result['parsed'] for result in results]
         else:
-            results_string = [x['parsed']
-                              for result in results for x in result]
+            results_string = [
+                x['parsed'] for result in results for x in result
+            ]
 
         for result in results_string:
             print(result)
