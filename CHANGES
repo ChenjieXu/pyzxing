@@ -7,3 +7,7 @@
 - support read multiple barcodes in a picture
 - scan multiple files in parallel
 - fix Linux runtime error
+0.3.1 (28 July 2020)
+- add command line runner
+- fix download link
+- optimize cache logic

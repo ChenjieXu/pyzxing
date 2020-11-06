@@ -7,8 +7,10 @@ import urllib.request
 
 from joblib import Parallel, delayed
 
+from .utils import get_file
+
 jar_filename = "javase-3.4.1-SNAPSHOT-jar-with-dependencies.jar"
-jar_url = "https://github.com/ChenjieXu/content/raw/master/"
+jar_url = "https://github.com/ChenjieXu/pyzxing/releases/download/v0.1/"
 jar_path = "zxing/javase/target/"
 
 
@@ -18,21 +20,19 @@ class BarCodeReader():
 
     def __init__(self):
         """Prepare necessary jar file."""
-        res = glob.glob(jar_path + "javase-*-jar-with-dependencies.jar")
+        cache_dir = os.path.join(os.path.expanduser('~'), '.local')
+        res = glob.glob(
+            jar_path + "javase-*-jar-with-dependencies.jar")
         if res:
             self.lib_path = res[0]
+            os.makedirs(cache_dir, exist_ok=True)
+            shutil.move(res[0], cache_dir)
         else:
-            print("ZXing library is not compiled. Use local jar file.")
-            download_url = jar_url + jar_filename
-            save_path = jar_path + jar_filename
+            print("Use local jar file.")
+            download_url = os.path.join(jar_url, jar_filename)
+            save_path = os.path.join(cache_dir, jar_filename)
             if not os.path.exists(save_path):
-                print("Local jar file does not exist. Downloading...")
-                if not os.path.exists(jar_path):
-                    os.makedirs(jar_path)
-                req = urllib.request.Request(download_url)
-                with urllib.request.urlopen(req) as resp, open(
-                        save_path, 'wb') as out:
-                    shutil.copyfileobj(resp, out)
+                get_file(jar_filename, download_url, cache_dir)
                 print("Download completed.")
             self.lib_path = save_path
 
