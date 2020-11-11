@@ -37,7 +37,7 @@ class BarCodeReader():
             self.lib_path = save_path
 
     def decode(self, filename_pattern):
-        filenames = glob.glob(filename_pattern)
+        filenames = glob.glob(os.path.abspath(filename_pattern))
         if len(filenames) == 0:
             print("File not found!")
             results = None
@@ -53,7 +53,7 @@ class BarCodeReader():
         return results
 
     def _decode(self, filename):
-        cmd = ' '.join([self.command, self.lib_path, filename, '--multi'])
+        cmd = ' '.join([self.command, self.lib_path, 'file:///' + filename, '--multi'])
         (stdout, _) = subprocess.Popen(cmd,
                                        stdout=subprocess.PIPE,
                                        universal_newlines=True,
