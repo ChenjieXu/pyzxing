@@ -11,3 +11,6 @@
 - add command line runner
 - fix download link
 - optimize cache logic
+0.3.3 (29 Nov 2020)
+- Update result parser
+- support using absolute path
