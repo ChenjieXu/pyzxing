@@ -65,3 +65,8 @@ Or you may simply call it from command line
 ```bash
 python scanner.py -f /PATH/TO/FILE
 ```
+
+GUI of pyzxing, [pyzxing-GUI](https://github.com/ChenjieXu/pyzxing-GUI), is available now! 
+
+![](https://github.com/ChenjieXu/pyzxing-GUI/raw/master/src/pyxing-GUI.gif)
+
