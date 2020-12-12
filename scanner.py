@@ -13,10 +13,10 @@ def main(args):
     results = reader.decode(args.file)
     if results:
         if isinstance(results[0], dict):
-            results_string = [result['parsed'] for result in results]
+            results_string = [result.get('parsed') for result in results]
         else:
             results_string = [
-                x['parsed'] for result in results for x in result
+                x.get('parsed') for result in results for x in result
             ]
 
         for result in results_string:
