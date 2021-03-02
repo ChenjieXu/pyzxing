@@ -35,7 +35,7 @@ pip install pyzxing
 随版本提供了一个即用的jar文件，但我不能保证此文件将在您的电脑上正常工作。可以在构建ZXing之前运行测试脚本。Pyzxing将自动下载编译的Jar文件并调用单元测试。对于尚未安装Java的用户，强烈建议您安装openjdk8。
 
 ```bash
-python -m unittest src.test_barcode
+python -m unittest src.test_decode
 ```
 
 如果单元测试未通过，使用以下代码构建ZXing库：
