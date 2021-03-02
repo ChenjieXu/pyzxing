@@ -21,8 +21,7 @@ class BarCodeReader():
     def __init__(self):
         """Prepare necessary jar file."""
         cache_dir = os.path.join(os.path.expanduser('~'), '.local')
-        res = glob.glob(
-            jar_path + "javase-*-jar-with-dependencies.jar")
+        res = glob.glob(jar_path + "javase-*-jar-with-dependencies.jar")
         if res:
             self.lib_path = res[0]
             os.makedirs(cache_dir, exist_ok=True)
@@ -53,7 +52,8 @@ class BarCodeReader():
         return results
 
     def _decode(self, filename):
-        cmd = ' '.join([self.command, self.lib_path, 'file:///' + filename, '--multi'])
+        cmd = ' '.join(
+            [self.command, self.lib_path, 'file:///' + filename, '--multi'])
         (stdout, _) = subprocess.Popen(cmd,
                                        stdout=subprocess.PIPE,
                                        universal_newlines=True,
@@ -83,7 +83,7 @@ class BarCodeReader():
             Point 0: (50.0,202.0)
             Point 1: (655.0,202.0)
         """
-        result = {}
+        result = dict()
         result['filename'] = lines[0].split(' ', 1)[0]
 
         if len(lines) > 1:
@@ -99,11 +99,14 @@ class BarCodeReader():
             if not raw_index or not parsed_index or not points_index:
                 print("Parse Error!")
                 return lines
-            result['raw'] = lines[raw_index + 1:parsed_index]
-            result['raw'] = '\n'.join(result['raw'])
-            result['parsed'] = lines[parsed_index + 1:points_index]
-            result['parsed'] = '\n'.join(result['parsed'])
-            # result['points'] = [ast.literal_eval(line[12:]) for line in lines[points_index+1:-1]]
+
+            result['raw'] = '\n'.join(lines[raw_index + 1:parsed_index])
+            result['parsed'] = '\n'.join(lines[parsed_index + 1:points_index])
+            result['points'] = [
+                ast.literal_eval(line.split(": ")[1])
+                for line in lines[points_index + 1:-1]
+            ]
+
         return result
 
 
