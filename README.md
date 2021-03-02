@@ -35,7 +35,7 @@ pip install pyzxing
 A ready-to-go jar file is available with release, but I can not guarantee that this file will work properly on your PC. You may run test script before building ZXing. Pyzxing will download compiled Jar file automatically and call unit test. For those who haven't installed Java, I strongly recommend you to install openjdk8.
 
 ```bash
-python -m unittest src.test_barcode
+python -m unittest src.test_decode
 ```
 
 If failed, build ZXing using following commands.
