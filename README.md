@@ -10,7 +10,7 @@ A Python wrapper of [ZXing library](https://github.com/zxing/zxing). python-zxin
 
 ## Features
 
-- Super easy to get hands on ZXing with Python
+- Super easy to get hands on decoding qrcode with Python
 - Structured outputs
 - Scan multiple barcodes in one picture
 - Scan multiple pictures in parallel, which speeds up 77%
