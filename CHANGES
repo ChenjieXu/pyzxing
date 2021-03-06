@@ -16,3 +16,6 @@
 - support using absolute path
 0.3.4 (2 March 2021)
 - add points information in result
+0.3.5 (6 March 2021)
+- support decoding qrcode with bytes format content
+- support passing array into BarCodeReader
