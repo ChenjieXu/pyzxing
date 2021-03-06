@@ -60,7 +60,7 @@ class BarCodeReader():
                                        shell=True).communicate()
         lines = stdout.splitlines()
         separator_idx = [
-            i for i in range(len(lines)) if lines[i][:4] == 'file'
+            i for i in range(len(lines)) if lines[i].startswith('file')
         ] + [len(lines)]
 
         result = [
@@ -112,7 +112,7 @@ class BarCodeReader():
 
 def find_line_index(lines, content):
     for i, line in enumerate(lines):
-        if line[:len(content)] == content:
+        if line.startswith(content):
             return i
 
     return None
