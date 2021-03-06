@@ -37,8 +37,7 @@ class BarCodeReader:
     def decode(self, filename_pattern):
         filenames = glob.glob(os.path.abspath(filename_pattern))
         if len(filenames) == 0:
-            print("File not found!")
-            results = None
+            raise FileNotFoundError
 
         elif len(filenames) == 1:
             results = self._decode(filenames[0].replace('\\', '/'))
