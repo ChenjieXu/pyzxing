@@ -50,6 +50,17 @@ class BarCodeReader:
 
         return results
 
+    def decode_array(self, array):
+        import cv2 as cv
+        import time
+        os.makedirs('.cache', exist_ok=True)
+        filename = f'.cache/{time.time()}.jpg'
+        if len(array.shape) == 3:
+            array = array[:, :, ::-1]
+        cv.imwrite(filename, array)
+
+        return self.decode(filename)
+
     def _decode(self, filename):
         cmd = ' '.join(
             [self.command, self.lib_path, 'file:///' + filename, '--multi'])
