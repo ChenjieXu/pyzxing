@@ -58,6 +58,10 @@ results = reader.decode('/PATH/TO/FILE')
 # Or file pattern for multiple files
 results = reader.decode('/PATH/TO/FILES/*.png')
 print(results)
+# Or a numpy array
+# Requires additional installation of opencv
+# pip install opencv-python
+results = reader.decode_array(img)
 ```
 
 Or you may simply call it from command line
