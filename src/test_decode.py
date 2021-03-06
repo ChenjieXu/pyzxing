@@ -11,35 +11,35 @@ class TestBarCodeReaderDecode(unittest.TestCase):
     def test_codabar(self):
         basename = 'src/resources/codabar'
         result = self.reader.decode(basename + '.png')
-        with open(basename + '.txt', 'r') as fp:
+        with open(basename + '.txt', 'rb') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result[0]['parsed'], gt)
 
     def test_code39(self):
         basename = 'src/resources/code39'
         result = self.reader.decode(basename + '.png')
-        with open(basename + '.txt', 'r') as fp:
+        with open(basename + '.txt', 'rb') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result[0]['parsed'], gt)
 
     def test_code128(self):
         basename = 'src/resources/code128'
         result = self.reader.decode(basename + '.png')
-        with open(basename + '.txt', 'r') as fp:
+        with open(basename + '.txt', 'rb') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result[0]['parsed'], gt)
 
     def test_pdf417(self):
         basename = 'src/resources/pdf417'
         result = self.reader.decode(basename + '.png')
-        with open(basename + '.txt', 'r') as fp:
+        with open(basename + '.txt', 'rb') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result[0]['parsed'], gt)
 
     def test_qrcode(self):
         basename = 'src/resources/qrcode'
         result = self.reader.decode(basename + '.png')
-        with open(basename + '.txt', 'r') as fp:
+        with open(basename + '.txt', 'rb') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result[0]['parsed'], gt)
 
@@ -58,7 +58,7 @@ class TestBarCodeReaderDecode(unittest.TestCase):
         results = self.reader.decode(basename + '.jpg')
         result_string = [result['parsed'] for result in results]
 
-        with open(basename + '.txt', 'r') as fp:
+        with open(basename + '.txt', 'rb') as fp:
             gt = [line.strip() for line in fp.readlines()]
 
         self.assertEqual(set(result_string), set(gt))
@@ -75,7 +75,7 @@ class TestBarCodeReaderDecode(unittest.TestCase):
         ]
         gt = []
         for annofile in annofiles:
-            with open(annofile, 'r') as fp:
+            with open(annofile, 'rb') as fp:
                 gt.append(fp.readline().strip())
 
         self.assertEqual(set(results_string), set(gt))
