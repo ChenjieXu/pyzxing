@@ -50,7 +50,6 @@ mvn -DskipTests package assembly:single
 ```
 
 ## 快速上手
-
 ```python
 from pyzxing import BarCodeReader
 reader = BarCodeReader()
@@ -58,6 +57,9 @@ results = reader.decode('/PATH/TO/FILE')
 # 支持输入文件模式以检测多个文件
 results = reader.decode('/PATH/TO/FILES/*.png')
 print(results)
+# 支持传入图片的向量
+# 需要额外安装opencv，pip install opencv-python
+results = reader.decode_array(img)
 ```
 
 或者直接从命令行调用：
