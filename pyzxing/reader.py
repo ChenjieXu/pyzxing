@@ -3,7 +3,6 @@ import glob
 import os
 import shutil
 import subprocess
-import urllib.request
 
 from joblib import Parallel, delayed
 
@@ -14,7 +13,7 @@ jar_url = "https://github.com/ChenjieXu/pyzxing/releases/download/v0.1/"
 jar_path = "zxing/javase/target/"
 
 
-class BarCodeReader():
+class BarCodeReader:
     command = "java -jar"
     lib_path = ""
 
@@ -56,12 +55,12 @@ class BarCodeReader():
             [self.command, self.lib_path, 'file:///' + filename, '--multi'])
         (stdout, _) = subprocess.Popen(cmd,
                                        stdout=subprocess.PIPE,
-                                       universal_newlines=True,
+                                       # universal_newlines=True,
                                        shell=True).communicate()
         lines = stdout.splitlines()
         separator_idx = [
-            i for i in range(len(lines)) if lines[i].startswith('file')
-        ] + [len(lines)]
+                            i for i in range(len(lines)) if lines[i].startswith(b'file')
+                        ] + [len(lines)]
 
         result = [
             self._parse_single(lines[separator_idx[i]:separator_idx[i + 1]])
@@ -84,26 +83,25 @@ class BarCodeReader():
             Point 1: (655.0,202.0)
         """
         result = dict()
-        result['filename'] = lines[0].split(' ', 1)[0]
+        result['filename'] = lines[0].split(b' ', 1)[0]
 
         if len(lines) > 1:
-            lines[0] = lines[0].split(' ', 1)[1]
-            for ch in '():,':
-                lines[0] = lines[0].replace(ch, '')
-            _, result['format'], _, result['type'] = lines[0].split(' ')
+            lines[0] = lines[0].split(b' ', 1)[1]
+            for ch in [b'(', b')', b':', b',']:
+                lines[0] = lines[0].replace(ch, b'')
+            _, result['format'], _, result['type'] = lines[0].split(b' ')
 
-            raw_index = find_line_index(lines, "Raw result:")
-            parsed_index = find_line_index(lines, "Parsed result:")
-            points_index = find_line_index(lines, "Found")
+            raw_index = find_line_index(lines, b"Raw result:")
+            parsed_index = find_line_index(lines, b"Parsed result:")
+            points_index = find_line_index(lines, b"Found")
 
             if not raw_index or not parsed_index or not points_index:
-                print("Parse Error!")
-                return lines
+                raise Exception("Parse Error")
 
-            result['raw'] = '\n'.join(lines[raw_index + 1:parsed_index])
-            result['parsed'] = '\n'.join(lines[parsed_index + 1:points_index])
+            result['raw'] = b'\n'.join(lines[raw_index + 1:parsed_index])
+            result['parsed'] = b'\n'.join(lines[parsed_index + 1:points_index])
             result['points'] = [
-                ast.literal_eval(line.split(": ")[1])
+                ast.literal_eval(line.split(b": ")[1].decode())
                 for line in lines[points_index + 1:-1]
             ]
 
