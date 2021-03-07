@@ -1,5 +1,6 @@
 import ast
 import glob
+import logging
 import os
 import shutil
 import subprocess
@@ -26,12 +27,12 @@ class BarCodeReader:
             os.makedirs(cache_dir, exist_ok=True)
             shutil.move(res[0], cache_dir)
         else:
-            print("Use local jar file.")
+            logging.debug("Use local jar file.")
             download_url = os.path.join(jar_url, jar_filename)
             save_path = os.path.join(cache_dir, jar_filename)
             if not os.path.exists(save_path):
                 get_file(jar_filename, download_url, cache_dir)
-                print("Download completed.")
+                logging.debug("Download completed.")
             self.lib_path = save_path
 
     def decode(self, filename_pattern):
