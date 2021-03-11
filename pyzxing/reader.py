@@ -59,7 +59,11 @@ class BarCodeReader:
             array = array[:, :, ::-1]
         cv.imwrite(filename, array)
 
-        return self.decode(filename)
+        result = self.decode(filename)
+
+        os.remove(filename)
+
+        return result
 
     def _decode(self, filename):
         cmd = ' '.join(
