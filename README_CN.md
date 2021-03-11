@@ -13,7 +13,7 @@ Pyzxing是二维码识别[ZXing](https://github.com/zxing/zxing)JAVA库的Python
 - 十分容易上手
 - 结构化输出
 - 能够识别一张图中的多个二维码
-- 以并行方式是被多张图片，提速77%
+- 以并行方式识别多张图片，提速77%
 
 ## 安装
 推荐从[Github](https://github.com/ChenjieXu/pyzxing.git)源安装:
@@ -67,3 +67,12 @@ results = reader.decode_array(img)
 ```bash
 python scanner.py -f /PATH/TO/FILE
 ```
+
+# 赞助
+
+<p align="left">
+  <a href="https://jb.gg/OpenSource"><img src="src/jetbrains-logo.svg" alt="Logo"></img></a>
+  
+  <br/>
+  <sub><a href="https://www.jetbrains.com/community/opensource/">开源支持计划</a></sub>
+</p>
