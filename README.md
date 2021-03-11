@@ -70,7 +70,11 @@ Or you may simply call it from command line
 python scanner.py -f /PATH/TO/FILE
 ```
 
-GUI of pyzxing, [pyzxing-GUI](https://github.com/ChenjieXu/pyzxing-GUI), is available now! 
+# Sponsor
 
-![](https://github.com/ChenjieXu/pyzxing-GUI/raw/master/src/pyxing-GUI.gif)
-
+<p align="left">
+  <a href="https://jb.gg/OpenSource"><img src="src/jetbrains-logo.svg" alt="Logo"></img></a>
+  
+  <br/>
+  <sub><a href="https://www.jetbrains.com/community/opensource/">Open Source Support Program</a></sub>
+</p>
