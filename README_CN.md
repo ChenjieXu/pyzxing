@@ -1,4 +1,5 @@
 # pyzxing
+
 简体中文 | [English](README.md)
 
 [![Travis (.org)](https://img.shields.io/travis/ChenjieXu/pyzxing)](https://travis-ci.org/github/ChenjieXu/pyzxing)
@@ -6,7 +7,14 @@
 [![PyPI](https://img.shields.io/pypi/v/pyzxing)](https://pypi.org/project/pyzxing/)
 [![Codacy grade](https://img.shields.io/codacy/grade/353f276d2073445aab7af3e32b0d503a)](https://www.codacy.com/manual/ChenjieXu/pyzxing)
 
-Pyzxing是二维码识别[ZXing](https://github.com/zxing/zxing)JAVA库的Python API。由于Zxing库相较于其他库二维码识别率最高，但使用起来十分繁琐，且python-zxing不能正常使用缺已不再维护，所以我创建了这个库让使用Python的人可以以最小的精力来使用Zxing库来进行二维码识别。
+## 第一个正式版本
+
+经历了一年的开发，pyzxing的第一个正式版本终于发布了。十分感谢各位开发者的建议和issue，这非常大程度上帮助了这个项目的开发。这个项目会继续保持开源并定时更新。
+
+## 简介
+
+Pyzxing是二维码识别[ZXing](https://github.com/zxing/zxing)JAVA库的Python
+API。由于Zxing库相较于其他库二维码识别率最高，但使用起来十分繁琐，且python-zxing不能正常使用缺已不再维护，所以我创建了这个库让使用Python的人可以以最小的精力来使用Zxing库来进行二维码识别。
 
 ## 特性
 
