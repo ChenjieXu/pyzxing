@@ -7,7 +7,7 @@ with open('requirements.txt') as f:
 
 setup(
     name="pyzxing",
-    version="0.3.5",
+    version="1.0.0",
     url="https://github.com/ChenjieXu/pyzxing",
     description="Python wrapper for ZXing Java library",
     long_description=readme,
@@ -18,12 +18,15 @@ setup(
     packages=find_packages(),
     license='MIT',
     classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        'Intended Audience :: Developers',
+        "Intended Audience :: Financial and Insurance Industry",
         'License :: OSI Approved :: MIT License',
+        "Operating System :: Microsoft :: Windows",
+        "Operating System :: POSIX :: Linux",
         'Programming Language :: Python :: 3',
         'Topic :: Software Development :: Libraries',
         'Topic :: Software Development :: Libraries :: Python Modules',
-        'Intended Audience :: Developers',
-        'Intended Audience :: Science/Research',
     ],
     install_requires=reqs.strip().split('\n'),
 )
