@@ -68,7 +68,7 @@ class BarCodeReader:
 
     def _decode(self, filename):
         cmd = ' '.join(
-            [self.command, self.lib_path, 'file:///' + filename, '--multi'])
+            [self.command, self.lib_path, 'file:///' + filename, '--multi', '--try_harder'])
         (stdout, _) = subprocess.Popen(cmd,
                                        stdout=subprocess.PIPE,
                                        # universal_newlines=True,
