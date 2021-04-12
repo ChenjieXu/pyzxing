@@ -1,4 +1,5 @@
 # pyzxing
+
 English | [简体中文](README_CN.md)
 
 [![Travis (.org)](https://img.shields.io/travis/ChenjieXu/pyzxing)](https://travis-ci.org/github/ChenjieXu/pyzxing)
@@ -6,7 +7,17 @@ English | [简体中文](README_CN.md)
 [![PyPI](https://img.shields.io/pypi/v/pyzxing)](https://pypi.org/project/pyzxing/)
 [![Codacy grade](https://img.shields.io/codacy/grade/353f276d2073445aab7af3e32b0d503a)](https://www.codacy.com/manual/ChenjieXu/pyzxing)
 
-A Python wrapper of [ZXing library](https://github.com/zxing/zxing). python-zxing does not work properly and is out of maintenance. So I decide to create this repository so that Pythoneers can take advantage of ZXing library with minimum effort.
+## First GA
+
+After a year of development, the first General Availability of pyzxing is finally released. I would like to express my
+gratitude to all the developers for their suggestions and issue, which helped the development of this project to a great
+extent. This project will continue to be open source and updated regularly.
+
+## Introduction
+
+A Python wrapper of [ZXing library](https://github.com/zxing/zxing). python-zxing does not work properly and is out of
+maintenance. So I decide to create this repository so that Pythoneers can take advantage of ZXing library with minimum
+effort.
 
 ## Features
 
