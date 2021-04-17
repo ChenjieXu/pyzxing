@@ -2,9 +2,11 @@
 
 简体中文 | [English](README.md)
 
-[![Travis (.org)](https://img.shields.io/travis/ChenjieXu/pyzxing)](https://travis-ci.org/github/ChenjieXu/pyzxing)
 [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/chenjiexu/pyzxing?include_prereleases)](https://github.com/ChenjieXu/pyzxing/releases/latest)
 [![PyPI](https://img.shields.io/pypi/v/pyzxing)](https://pypi.org/project/pyzxing/)
+[![Conda](https://img.shields.io/conda/v/chenjiexu/pyzxing)](https://anaconda.org/ChenjieXu/pyzxing)
+
+[![Travis (.org)](https://img.shields.io/travis/ChenjieXu/pyzxing)](https://travis-ci.org/github/ChenjieXu/pyzxing)
 [![Codacy grade](https://img.shields.io/codacy/grade/353f276d2073445aab7af3e32b0d503a)](https://www.codacy.com/manual/ChenjieXu/pyzxing)
 
 ## 第一个正式版本
@@ -24,7 +26,7 @@ API。由于Zxing库相较于其他库二维码识别率最高，但使用起来
 - 以并行方式识别多张图片，提速77%
 
 ## 安装
-推荐从[Github](https://github.com/ChenjieXu/pyzxing.git)源安装:
+推荐从[Github](https://github.com/ChenjieXu/pyzxing.git) 源安装:
 
 ```bash
 git clone https://github.com/ChenjieXu/pyzxing.git
@@ -32,10 +34,16 @@ cd pyzxing
 python setup.py install
 ```
 
-同时也支持使用pip从 [PyPI](https://pypi.org/project/pyzxing/)安装:
+同时也支持使用pip从 [PyPI](https://pypi.org/project/pyzxing/) 安装:
 
 ```bash
 pip install pyzxing
+```
+
+从[Anaconda](https://anaconda.org/ChenjieXu/pyzxing) 安装:
+
+```bash
+conda install -c chenjiexu pyzxing
 ```
 
 ## 构建ZXing库
