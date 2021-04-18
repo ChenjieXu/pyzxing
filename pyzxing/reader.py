@@ -2,6 +2,7 @@ import ast
 import glob
 import logging
 import os
+import os.path as osp
 import re
 import shutil
 import subprocess
@@ -10,35 +11,42 @@ from joblib import Parallel, delayed
 
 from .utils import get_file
 
-jar_filename = "javase-3.4.1-SNAPSHOT-jar-with-dependencies.jar"
-jar_url = "https://github.com/ChenjieXu/pyzxing/releases/download/v0.1/"
-jar_path = "zxing/javase/target/"
+preset_jar_url_prefix = "https://github.com/ChenjieXu/pyzxing/releases/download/v0.1/"
+preset_jar_filename = "javase-3.4.1-SNAPSHOT-jar-with-dependencies.jar"
+build_jar_dir = str(osp.sep).join(["zxing", "javase", "target"])
 
 
 class BarCodeReader:
-    command = "java -jar"
     lib_path = ""
 
     def __init__(self):
         """Prepare necessary jar file."""
-        cache_dir = os.path.join(os.path.expanduser('~'), '.local')
-        res = glob.glob(jar_path + "javase-*-jar-with-dependencies.jar")
-        if res:
-            self.lib_path = res[0]
-            os.makedirs(cache_dir, exist_ok=True)
-            shutil.move(res[0], cache_dir)
+        cache_dir = osp.join(osp.expanduser('~'), '.local')
+        os.makedirs(cache_dir, exist_ok=True)
+        # Check build dir
+        build_jar_path = glob.glob(osp.join(build_jar_dir, "javase-*-jar-with-dependencies.jar"))
+        if build_jar_path:
+            build_jar_filename = build_jar_path[-1].split(osp.sep)[-1]
+            # Move built jar file to cache dir
+            self.lib_path = osp.join(cache_dir, build_jar_filename)
+            if not osp.exists(self.lib_path):
+                shutil.copyfile(build_jar_path[-1], self.lib_path)
+            return
+        # Check cache dir
+        cache_jar_path = glob.glob(osp.join(cache_dir, "javase-*-jar-with-dependencies.jar"))
+        if cache_jar_path:
+            self.lib_path = cache_jar_path[-1]
+            return
         else:
-            logging.debug("Use local jar file.")
-            download_url = os.path.join(jar_url, jar_filename)
-            save_path = os.path.join(cache_dir, jar_filename)
-            if not os.path.exists(save_path):
-                get_file(jar_filename, download_url, cache_dir)
-                logging.debug("Download completed.")
-            self.lib_path = save_path
+            # Download preset jar if not built or cache jar
+            download_url = osp.join(preset_jar_url_prefix, preset_jar_filename)
+            get_file(preset_jar_filename, download_url, cache_dir)
+            logging.debug("Download completed.")
+            self.lib_path = osp.join(cache_dir, preset_jar_filename)
 
     def decode(self, filename_pattern):
-        filenames = glob.glob(os.path.abspath(filename_pattern))
-        if len(filenames) == 0:
+        filenames = glob.glob(osp.abspath(filename_pattern))
+        if not len(filenames):
             raise FileNotFoundError
 
         elif len(filenames) == 1:
@@ -59,16 +67,14 @@ class BarCodeReader:
         if len(array.shape) == 3:
             array = array[:, :, ::-1]
         cv.imwrite(filename, array)
-
         result = self.decode(filename)
-
         os.remove(filename)
 
         return result
 
     def _decode(self, filename):
         cmd = ' '.join(
-            [self.command, self.lib_path, 'file:///' + filename, '--multi', '--try_harder'])
+            ['java -jar', self.lib_path, 'file:///' + filename, '--multi', '--try_harder'])
         (stdout, _) = subprocess.Popen(cmd,
                                        stdout=subprocess.PIPE,
                                        # universal_newlines=True,
