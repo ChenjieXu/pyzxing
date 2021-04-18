@@ -113,9 +113,9 @@ class BarCodeReader:
                 lines[0] = lines[0].replace(ch, b'')
             _, result['format'], _, result['type'] = lines[0].split(b' ')
 
-            raw_index = find_line_index(lines, b"Raw result:")
-            parsed_index = find_line_index(lines, b"Parsed result:")
-            points_index = find_line_index(lines, b"Found")
+            raw_index = find_line_index(lines, b"Raw result:", 1)
+            parsed_index = find_line_index(lines, b"Parsed result:", raw_index)
+            points_index = find_line_index(lines, b"Found", parsed_index)
 
             if not raw_index or not parsed_index or not points_index:
                 raise Exception("Parse Error")
@@ -132,9 +132,9 @@ class BarCodeReader:
         return result
 
 
-def find_line_index(lines, content):
-    for i, line in enumerate(lines):
-        if line.startswith(content):
+def find_line_index(lines, content, start=0):
+    for i in range(start, len(lines)):
+        if lines[i].startswith(content):
             return i
 
     return None
