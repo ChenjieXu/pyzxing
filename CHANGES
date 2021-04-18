@@ -1,23 +1,25 @@
-0.1 (28 May 2020)
-- Initial release
-0.2 (29 May 2020)
-- parse raw output into structured result
-- enable using pre-compiled jar file
-0.3 (31 May 2020)
-- support read multiple barcodes in a picture
-- scan multiple files in parallel
-- fix Linux runtime error
+1.0.1 (18 April 2021)
+- fix jar preparation and add test case
+1.0.0 (12 April 2021)
+- better decoding performance
+0.3.5 (6 March 2021)
+- support decoding qrcode with bytes format content
+- support passing array into BarCodeReader
+0.3.4 (2 March 2021)
+- add points information in result
+0.3.3 (29 Nov 2020)
+- Update result parser
+- support using absolute path
 0.3.1 (28 July 2020)
 - add command line runner
 - fix download link
 - optimize cache logic
-0.3.3 (29 Nov 2020)
-- Update result parser
-- support using absolute path
-0.3.4 (2 March 2021)
-- add points information in result
-0.3.5 (6 March 2021)
-- support decoding qrcode with bytes format content
-- support passing array into BarCodeReader
-1.0.0 (12 April 2021)
-- better decoding performance
+0.3 (31 May 2020)
+- support read multiple barcodes in a picture
+- scan multiple files in parallel
+- fix Linux runtime error
+0.2 (29 May 2020)
+- parse raw output into structured result
+- enable using pre-compiled jar file
+0.1 (28 May 2020)
+- Initial release

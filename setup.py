@@ -7,7 +7,7 @@ with open('requirements.txt') as f:
 
 setup(
     name="pyzxing",
-    version="1.0.0",
+    version="1.0.1",
     url="https://github.com/ChenjieXu/pyzxing",
     description="Python wrapper for ZXing Java library",
     long_description=readme,
