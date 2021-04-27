@@ -4,6 +4,7 @@
 
 [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/chenjiexu/pyzxing?include_prereleases)](https://github.com/ChenjieXu/pyzxing/releases/latest)
 [![PyPI](https://img.shields.io/pypi/v/pyzxing)](https://pypi.org/project/pyzxing/)
+[![Conda-forge](https://img.shields.io/conda/v/conda-forge/pyzxing)](https://anaconda.org/conda-forge/pyzxing)
 [![Conda](https://img.shields.io/conda/v/chenjiexu/pyzxing)](https://anaconda.org/ChenjieXu/pyzxing)
 
 [![Travis (.org)](https://img.shields.io/travis/ChenjieXu/pyzxing)](https://travis-ci.org/github/ChenjieXu/pyzxing)
@@ -40,10 +41,11 @@ python setup.py install
 pip install pyzxing
 ```
 
-从[Anaconda](https://anaconda.org/ChenjieXu/pyzxing) 安装:
+从[Anaconda](https://anaconda.org/ChenjieXu/pyzxing) 安装。现在可以从公开的channel——conda-forge中下载:
 
 ```bash
-conda install -c chenjiexu pyzxing
+conda install pyzxing # conda-forge channel
+conda install -c chenjiexu pyzxing # 私人的channel
 ```
 
 ## 构建ZXing库
