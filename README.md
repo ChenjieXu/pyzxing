@@ -4,6 +4,7 @@ English | [简体中文](README_CN.md)
 
 [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/chenjiexu/pyzxing?include_prereleases)](https://github.com/ChenjieXu/pyzxing/releases/latest)
 [![PyPI](https://img.shields.io/pypi/v/pyzxing)](https://pypi.org/project/pyzxing/)
+[![Conda-forge](https://img.shields.io/conda/v/conda-forge/pyzxing)](https://anaconda.org/conda-forge/pyzxing)
 [![Conda](https://img.shields.io/conda/v/chenjiexu/pyzxing)](https://anaconda.org/ChenjieXu/pyzxing)
 
 [![Travis (.org)](https://img.shields.io/travis/ChenjieXu/pyzxing)](https://travis-ci.org/github/ChenjieXu/pyzxing)
@@ -44,10 +45,11 @@ It is also possible to install from [PyPI](https://pypi.org/project/pyzxing/):
 pip install pyzxing
 ```
 
-Install from [Anaconda](https://anaconda.org/ChenjieXu/pyzxing):
+Install from [Anaconda](https://anaconda.org/ChenjieXu/pyzxing). Now available on the public channel, conda-forge:
 
 ```bash
-conda install -c chenjiexu pyzxing
+conda install pyzxing # conda-forge channel
+conda install -c chenjiexu pyzxing # private channel
 ```
 
 ## Build ZXing Library
