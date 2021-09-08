@@ -17,7 +17,7 @@
 ## 简介
 
 Pyzxing是二维码识别[ZXing](https://github.com/zxing/zxing)JAVA库的Python
-API。由于Zxing库相较于其他库二维码识别率最高，但使用起来十分繁琐，且python-zxing不能正常使用缺已不再维护，所以我创建了这个库让使用Python的人可以以最小的精力来使用Zxing库来进行二维码识别。
+API。由于Zxing库相较于其他库二维码识别率最高，但使用起来十分繁琐，且python-zxing不能正常使用且已不再维护，所以我创建了这个库让使用Python的人可以以最小的精力来使用Zxing库来进行二维码识别。
 
 ## 特性
 
