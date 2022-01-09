@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyzxing"
-version = "1.0.1.1"
+version = "1.0.2"
 description = "Python wrapper for ZXing Java library"
 authors = ["Chenjie Xu <cxuscience@gmail.com>"]
 license = "MIT"
@@ -20,15 +20,15 @@ classifiers=[
     ]
 include = ["*.md", "*.txt"]
 
-[[tool.poetry.source]]
-name = "aliyun"
-url = "https://mirrors.aliyun.com/pypi/simple/"
-default = true
+#[[tool.poetry.source]]
+#name = "aliyun"
+#url = "https://mirrors.aliyun.com/pypi/simple/"
+#default = true
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.7"
 joblib = "^1.1.0"
-numpy = "^1.22.0"
+numpy = "^1.21"
 
 [tool.poetry.dev-dependencies]
 
