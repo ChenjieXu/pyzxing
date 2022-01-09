@@ -26,7 +26,7 @@ class TestCreateBarCodeReader(unittest.TestCase):
         if not build_jar_path:
             # Prepare fake built jar file
             from pyzxing.reader import preset_jar_url_prefix, preset_jar_filename
-            build_jar_dir_abs = osp.join(osp.abspath('.'), build_jar_dir)
+            build_jar_dir_abs = osp.join(osp.abspath('../src'), build_jar_dir)
             download_url = osp.join(preset_jar_url_prefix, preset_jar_filename)
             get_file(preset_jar_filename, download_url, build_jar_dir_abs)
 

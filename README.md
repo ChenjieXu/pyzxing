@@ -59,7 +59,7 @@ You may run test script before building ZXing. Pyzxing will download compiled Ja
 For those who haven't installed Java, I strongly recommend you to install openjdk8.
 
 ```bash
-python -m unittest src.test_decode
+python -m unittest tests.test_decode
 ```
 
 If failed, build ZXing using following commands.
@@ -92,7 +92,7 @@ results = reader.decode_array(img)
 Or you may simply call it from command line
 
 ```bash
-python scanner.py -f /PATH/TO/FILE
+python scripts/scanner.py -f /PATH/TO/FILE
 ```
 
 # Sponsor

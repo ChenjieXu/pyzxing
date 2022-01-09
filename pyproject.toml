@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "pyzxing"
+version = "1.0.1.1"
+description = "Python wrapper for ZXing Java library"
+authors = ["Chenjie Xu <cxuscience@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+keywords = ["zxing", "qrcode"]
+repository = "https://github.com/ChenjieXu/pyzxing"
+classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        'Intended Audience :: Developers',
+        "Intended Audience :: Financial and Insurance Industry",
+        'License :: OSI Approved :: MIT License',
+        "Operating System :: Microsoft :: Windows",
+        "Operating System :: POSIX :: Linux",
+        'Programming Language :: Python :: 3',
+        'Topic :: Software Development :: Libraries',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+    ]
+include = ["*.md", "*.txt"]
+
+[[tool.poetry.source]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = true
+
+[tool.poetry.dependencies]
+python = "^3.9"
+joblib = "^1.1.0"
+numpy = "^1.22.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
