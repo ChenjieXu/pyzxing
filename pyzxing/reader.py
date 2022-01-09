@@ -31,18 +31,19 @@ class BarCodeReader:
             self.lib_path = osp.join(cache_dir, build_jar_filename)
             if not osp.exists(self.lib_path):
                 shutil.copyfile(build_jar_path[-1], self.lib_path)
-            return
-        # Check cache dir
-        cache_jar_path = glob.glob(osp.join(cache_dir, "javase-*-jar-with-dependencies.jar"))
-        if cache_jar_path:
-            self.lib_path = cache_jar_path[-1]
-            return
         else:
-            # Download preset jar if not built or cache jar
-            download_url = osp.join(preset_jar_url_prefix, preset_jar_filename)
-            get_file(preset_jar_filename, download_url, cache_dir)
-            logging.debug("Download completed.")
-            self.lib_path = osp.join(cache_dir, preset_jar_filename)
+            # Check cache dir
+            cache_jar_path = glob.glob(osp.join(cache_dir, "javase-*-jar-with-dependencies.jar"))
+            if cache_jar_path:
+                self.lib_path = cache_jar_path[-1]
+            else:
+                # Download preset jar if not built or cache jar
+                download_url = osp.join(preset_jar_url_prefix, preset_jar_filename)
+                get_file(preset_jar_filename, download_url, cache_dir)
+                logging.debug("Download completed.")
+                self.lib_path = osp.join(cache_dir, preset_jar_filename)
+
+        self.lib_path = '"' + self.lib_path + '"'  # deal with blank in path
 
     def decode(self, filename_pattern):
         filenames = glob.glob(osp.abspath(filename_pattern))
@@ -50,7 +51,7 @@ class BarCodeReader:
             raise FileNotFoundError
 
         elif len(filenames) == 1:
-            results = self._decode(filenames[0].replace('\\', '/'))
+            results = self._decode(filenames[0].replace('\\', '/').replace(' ', '\ '))
 
         else:
             results = Parallel(n_jobs=-1)(
