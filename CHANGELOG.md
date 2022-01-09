@@ -1,5 +1,6 @@
 1.0.2 (9 Jan 2022)
 - Using poetry to manage project and change structure
+- Support blank in path
 
 1.0.1 (18 April 2021)
 - Fix jar preparation and add test case
