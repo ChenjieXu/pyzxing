@@ -16,8 +16,8 @@
 
 ## 简介
 
-Pyzxing是二维码识别[ZXing](https://github.com/zxing/zxing)JAVA库的Python
-API。由于Zxing库相较于其他库二维码识别率最高，但使用起来十分繁琐，且python-zxing不能正常使用且已不再维护，所以我创建了这个库让使用Python的人可以以最小的精力来使用Zxing库来进行二维码识别。
+Pyzxing是二维码识别[ZXing](https://github.com/zxing/zxing) JAVA库的Python
+API。由于Zxing库相较于其他库二维码识别率最高，但使用起来十分繁琐，且python-zxing不能正常使用且已不再维护，所以我创建了这个库让使用Python的人可以花费最小的精力来使用Zxing库来进行二维码识别。
 
 ## 特性
 
@@ -50,10 +50,10 @@ conda install -c chenjiexu pyzxing # 私人的channel
 
 ## 构建ZXing库
 
-随版本提供了一个即用的jar文件，但我不能保证此文件将在您的电脑上正常工作。可以在构建ZXing之前运行测试脚本。Pyzxing将自动下载编译的Jar文件并调用单元测试。对于尚未安装Java的用户，强烈建议您安装openjdk8。
+随版本提供了一个开箱即用的jar文件，但我不能保证此文件将在您的电脑上正常工作。可以在构建ZXing之前运行测试脚本。Pyzxing将自动下载编译的Jar文件并调用单元测试。对于尚未安装Java的用户，强烈建议您安装openjdk8。
 
 ```bash
-python -m unittest src.test_decode
+python -m unittest tests.test_decode
 ```
 
 如果单元测试未通过，使用以下代码构建ZXing库：
@@ -83,7 +83,7 @@ results = reader.decode_array(img)
 或者直接从命令行调用：
 
 ```bash
-python scanner.py -f /PATH/TO/FILE
+python scripts/scanner.py -f /PATH/TO/FILE
 ```
 
 # 赞助
