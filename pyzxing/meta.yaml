@@ -1,5 +1,5 @@
 {% set name = "pyzxing" %}
-{% set version = "1.0.1" %}
+{% set version = "1.0.2b" %}
 
 
 package:
@@ -37,7 +37,7 @@ about:
   home: https://github.com/ChenjieXu/pyzxing
   summary: Python wrapper for ZXing Java library
   license: MIT
-  license_file: LICENSE
+  license_file: LICENSE.txt
 
 extra:
   recipe-maintainers:
