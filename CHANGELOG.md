@@ -1,3 +1,6 @@
+dev (17 Jan 2022)
+- Use navdeep-G/setup.py as template
+
 1.0.2 (9 Jan 2022)
 - Using poetry to manage project and change structure
 - Support blank in path
