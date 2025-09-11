@@ -124,7 +124,7 @@ class BarCodeReader:
             result['raw'] = b'\n'.join(lines[raw_index + 1:parsed_index])
             result['parsed'] = b'\n'.join(lines[parsed_index + 1:points_index])
 
-            points_num = int(re.search(r"(?<=Found )\d?", lines[points_index].decode()).group())
+            points_num = sum(1 for line in lines if b'Point' in line)
             result['points'] = [
                 ast.literal_eval(line.split(b": ")[1].decode())
                 for line in lines[points_index + 1:points_index + 1 + points_num]
