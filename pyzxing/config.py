@@ -8,7 +8,8 @@ class Config:
     """Configuration constants and settings."""
     
     # Version information
-    VERSION = '1.0.3'
+    from .__version__ import __version__
+    VERSION = __version__
     MIN_PYTHON_VERSION = '>=3.8.0'
     
     # ZXing settings
