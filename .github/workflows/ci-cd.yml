@@ -79,21 +79,34 @@ jobs:
     
     - name: Publish to PyPI
       env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
         twine upload dist/*
 
   publish-conda:
-    needs: test
+    needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: publish-to-conda
-      uses: maxibor/conda-package-publish-action@v1.3
+    - name: Set up Python
+      uses: actions/setup-python@v4
       with:
-        subDir: 'pyzxing'
-        AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
+        python-version: '3.12'
+    
+    - name: Install conda-build
+      run: |
+        pip install conda-build anaconda-client
+    
+    - name: Build conda package
+      run: |
+        conda build conda-recipe --output-folder ./
+    
+    - name: Upload to Anaconda
+      env:
+        ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+      run: |
+        anaconda upload --force --label main noarch/*.tar.bz2

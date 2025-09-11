@@ -1,0 +1,51 @@
+{% set name = "pyzxing" %}
+{% set version = "1.0.3" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  noarch: python
+  number: 0
+  script: {{ PYTHON }} -m pip install . -vv
+
+requirements:
+  host:
+    - python >=3.8
+    - pip
+    - setuptools
+    - wheel
+  run:
+    - python >=3.8
+    - numpy
+    - joblib
+    - setuptools
+
+test:
+  imports:
+    - pyzxing
+  requires:
+    - pytest
+  commands:
+    - pytest tests/
+
+about:
+  home: https://github.com/ChenjieXu/pyzxing
+  license: MIT
+  license_family: MIT
+  summary: 'Python wrapper for ZXing Java library.'
+  description: |
+    PyZXing is a Python wrapper for the ZXing (Zebra Crossing) library,
+    which is a multi-format 1D/2D barcode image processing library
+    implemented in Java, with ports to other languages.
+    
+    This package provides a simple Python interface to decode barcodes
+    and QR codes from images using the ZXing Java library via subprocess calls.
+
+extra:
+  recipe-maintainers:
+    - ChenjieXu
