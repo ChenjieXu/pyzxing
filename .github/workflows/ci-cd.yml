@@ -5,6 +5,8 @@ on:
     branches: [ dev, master, main ]
   pull_request:
     branches: [ master, main ]
+  release:
+    types: [created]
 
 jobs:
   test:
@@ -50,7 +52,7 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.event_name == 'release'
     
     steps:
     - uses: actions/checkout@v4
