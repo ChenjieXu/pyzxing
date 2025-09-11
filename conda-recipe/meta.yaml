@@ -1,5 +1,5 @@
 {% set name = "pyzxing" %}
-{% set version = "1.0.4a3" %} {# Sync with pyzxing/__version__.py #}
+{% set version = "1.0.4a4" %} {# Sync with pyzxing/__version__.py #}
 
 package:
   name: {{ name|lower }}
