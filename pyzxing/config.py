@@ -9,7 +9,7 @@ class Config:
     
     # Version information
     VERSION = '1.0.3'
-    MIN_PYTHON_VERSION = '>=3.7.0'
+    MIN_PYTHON_VERSION = '>=3.8.0'
     
     # ZXing settings
     DEFAULT_ZXING_VERSION = '3.4.1'
