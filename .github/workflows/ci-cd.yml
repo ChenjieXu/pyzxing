@@ -112,6 +112,6 @@ jobs:
       run: |
         conda install conda-build anaconda-client
         conda build conda-recipe --output-folder ./
-        anaconda upload --force --label main noarch/*.tar.bz2
-        anaconda upload --force --label chenjiexu noarch/*.tar.bz2
-        anaconda upload --force --label conda-forge noarch/*.tar.bz2
+        conda run -n base anaconda upload --force --label main noarch/*.conda
+        conda run -n base anaconda upload --force --label chenjiexu noarch/*.conda
+        conda run -n base anaconda upload --force --label conda-forge noarch/*.conda
