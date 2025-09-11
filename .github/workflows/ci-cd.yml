@@ -61,10 +61,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - name: Set up Miniconda
+      uses: conda-incubator/setup-miniconda@v2
       with:
-        python-version: '3.12'
+        miniconda-version: "latest"
+        auto-update-conda: true
+        python-version: '3.12' # Keep the python version for consistency
     
     - name: Install build dependencies
       run: |
@@ -108,7 +110,7 @@ jobs:
       env:
         ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
-        pip install conda-build==3.21.9 anaconda-client
+        conda install conda-build anaconda-client
         conda build conda-recipe --output-folder ./
         anaconda upload --force --label main noarch/*.tar.bz2
         anaconda upload --force --label chenjiexu noarch/*.tar.bz2
