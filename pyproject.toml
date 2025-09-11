@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyzxing"
+dynamic = ["version"]
+description = "Python wrapper for ZXing Java library."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Chenjie Xu", email = "cxuscience@gmail.com"},
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.8.0"
+dependencies = [
+    "setuptools",
+    "joblib",
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0.0",
+    "pytest-cov>=2.0.0",
+    "psutil>=5.0.0",
+]
+
+[tool.setuptools_scm]
+write_to = "pyzxing/_version.py"
+
+[tool.setuptools]
+packages = ["pyzxing", "src"]
+include-package-data = false
+
+[tool.setuptools.dynamic]
+version = {attr = "pyzxing.__version__.__version__"}
+
+[tool.setuptools.package-data]
+"*" = ["*.py", "*.md"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["LICENSE*", "*.txt"]
+
+[tool.setuptools.package-dir]
+"" = "."

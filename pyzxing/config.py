@@ -8,12 +8,13 @@ class Config:
     """Configuration constants and settings."""
     
     # Version information
-    VERSION = '1.0.3'
+    from .__version__ import __version__
+    VERSION = __version__
     MIN_PYTHON_VERSION = '>=3.8.0'
     
     # ZXing settings
     DEFAULT_ZXING_VERSION = '3.4.1'
-    JAR_RELEASE_VERSION = '0.1'  # Only v0.1 has pre-built JAR file
+    JAR_RELEASE_VERSION = '1.1.0'  # Only v1.1.0 has pre-built JAR file
     JAR_URL_PREFIX = "https://github.com/ChenjieXu/pyzxing/releases/download/v{version}/"
     JAR_FILENAME = "javase-{version}-SNAPSHOT-jar-with-dependencies.jar"
     
