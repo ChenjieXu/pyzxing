@@ -85,12 +85,3 @@ results = reader.decode_array(img)
 ```bash
 python scripts/scanner.py -f /PATH/TO/FILE
 ```
-
-# 赞助
-
-<p align="left">
-  <a href="https://jb.gg/OpenSource"><img src="src/jetbrains-logo.svg" alt="Logo"></img></a>
-  
-  <br/>
-  <sub><a href="https://www.jetbrains.com/community/opensource/">开源支持计划</a></sub>
-</p>
