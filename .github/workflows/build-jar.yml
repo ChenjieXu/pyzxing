@@ -1,0 +1,113 @@
+name: Build ZXing JAR
+
+on:
+  workflow_dispatch:
+    inputs:
+      test:
+        description: 'Run tests before building'
+        required: false
+        default: true
+        type: boolean
+      upload_artifact:
+        description: 'Upload JAR as artifact'
+        required: false
+        default: true
+        type: boolean
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'zxing/**'
+      - 'scripts/build_jar.sh'
+      - '.github/workflows/build-jar.yml'
+
+jobs:
+  build-jar:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Set up Java
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov
+    
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-m2-
+    
+    - name: Run tests (if requested)
+      if: ${{ github.event.inputs.test == 'true' || github.event.inputs.test == '' }}
+      run: |
+        python3 -m pytest tests/ -v --cov=pyzxing --cov-report=term-missing
+    
+    - name: Build ZXing JAR
+      run: |
+        chmod +x scripts/build_jar.sh
+        ./scripts/build_jar.sh
+    
+    - name: Test JAR functionality
+      run: |
+        JAR_FILE=$(find releases -name "*.jar" | head -1)
+        echo "Testing JAR file: $JAR_FILE"
+        java -jar "$JAR_FILE" --help
+        
+        # Test with Python integration
+        python3 -c "
+import sys
+sys.path.insert(0, '.')
+from pyzxing import BarCodeReader
+reader = BarCodeReader()
+print('✅ JAR integration test passed!')
+        "
+    
+    - name: Upload JAR as artifact
+      if: ${{ github.event.inputs.upload_artifact == 'true' || github.event.inputs.upload_artifact == '' }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: zxing-jar-${{ github.sha }}
+        path: releases/*.jar
+        retention-days: 30
+    
+    - name: Create release summary
+      run: |
+        JAR_FILE=$(find releases -name "*.jar" | head -1)
+        if [ -f "$JAR_FILE" ]; then
+          echo "## 📦 ZXing JAR Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**JAR File:** $(basename $JAR_FILE)" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** $(du -h $JAR_FILE | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Date:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ JAR file test passed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Python integration test passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Usage" >> $GITHUB_STEP_SUMMARY
+          echo "The JAR file can be used with pyzxing or standalone:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Use with pyzxing" >> $GITHUB_STEP_SUMMARY
+          echo "python3 -c \"from pyzxing import BarCodeReader; reader = BarCodeReader(); result = reader.decode('image.png')\"" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Use standalone" >> $GITHUB_STEP_SUMMARY
+          echo "java -jar $(basename $JAR_FILE) image.png" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        fi
