@@ -15,11 +15,11 @@ def get_file(fname,
     """
     if cache_dir is None:
         cache_dir = os.path.join(os.path.expanduser('~'), '.local')
-    datadir_base = os.path.expanduser(cache_dir)
-    datadir = os.path.join(datadir_base, cache_dir)
-    os.makedirs(datadir, exist_ok=True)
-
-    fpath = os.path.join(datadir, fname)
+    else:
+        cache_dir = os.path.expanduser(cache_dir)
+    
+    os.makedirs(cache_dir, exist_ok=True)
+    fpath = os.path.join(cache_dir, fname)
 
     print('Downloading data from', origin)
 

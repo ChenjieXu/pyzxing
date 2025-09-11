@@ -1,5 +1,5 @@
 {% set name = "pyzxing" %}
-{% set version = "1.0.2b" %}
+{% set version = "1.0.3" %}
 
 
 package:
@@ -17,11 +17,11 @@ build:
 requirements:
   host:
     - pip
-    - python >=3.6
+    - python >=3.7
   run:
     - joblib
     - numpy
-    - python >=3.6
+    - python >=3.7
     - setuptools
 
 test:
