@@ -9,7 +9,12 @@ from shutil import rmtree
 from setuptools import find_packages, setup, Command
 
 # Package meta-data.
-VERSION = '1.0.3'
+# Import version from package
+try:
+    from pyzxing.__version__ import __version__
+    VERSION = __version__
+except ImportError:
+    VERSION = '1.0.3'
 NAME = 'pyzxing'
 DESCRIPTION = 'Python wrapper for ZXing Java library.'
 URL = 'https://github.com/ChenjieXu/pyzxing'
