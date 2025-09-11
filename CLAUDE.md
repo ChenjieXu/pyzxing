@@ -1,5 +1,5 @@
 # CLAUDE.md
-
+commit里面不要有claude信息
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 项目概述
