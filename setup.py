@@ -9,12 +9,6 @@ from shutil import rmtree
 from setuptools import find_packages, setup, Command
 
 # Package meta-data.
-# Import version from package
-try:
-    from pyzxing.__version__ import __version__
-    VERSION = __version__
-except ImportError:
-    VERSION = '1.0.3'
 NAME = 'pyzxing'
 DESCRIPTION = 'Python wrapper for ZXing Java library.'
 URL = 'https://github.com/ChenjieXu/pyzxing'
@@ -22,10 +16,18 @@ EMAIL = 'cxuscience@gmail.com'
 AUTHOR = 'Chenjie Xu'
 REQUIRES_PYTHON = '>=3.8.0'
 
+here = os.path.abspath(os.path.dirname(__file__))
+
+# Load the package's __version__.py module as a dictionary.
+about = {}
+with open(os.path.join(here, 'pyzxing', '__version__.py')) as f:
+    exec(f.read(), about)
+VERSION = about['__version__']
+
 # What packages are required for this module to be executed?
 with open('requirements.txt') as f:
     reqs = f.read()
-REQUIRED = reqs.strip().split('\n')
+REQUIRED = reqs.strip().splitlines()
 
 # What packages are optional?
 EXTRAS = {
@@ -37,24 +39,13 @@ EXTRAS = {
 # Except, perhaps the License and Trove Classifiers!
 # If you do change the License, remember to change the Trove Classifier for that!
 
-here = os.path.abspath(os.path.dirname(__file__))
-
-# Import the README and use it as the long-description.
+# Import the README and use it as the long_description.
 # Note: this will only work if 'README.md' is present in your MANIFEST.in file!
 try:
     with io.open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
         long_description = '\n' + f.read()
 except FileNotFoundError:
     long_description = DESCRIPTION
-
-# Load the package's __version__.py module as a dictionary.
-about = {}
-if not VERSION:
-    project_slug = NAME.lower().replace("-", "_").replace(" ", "_")
-    with open(os.path.join(here, project_slug, '__version__.py')) as f:
-        exec(f.read(), about)
-else:
-    about['__version__'] = VERSION
 
 
 class UploadCommand(Command):
@@ -108,9 +99,8 @@ setup(
     packages=find_packages(exclude=["tests", "*.tests", "*.tests.*", "tests.*"]),
     install_requires=REQUIRED,
     extras_require=EXTRAS,
-    include_package_data=True,
-    license='MIT',
-    classifiers=[
+    include_package_data=False,
+        classifiers=[
         "Development Status :: 5 - Production/Stable",
         'Intended Audience :: Developers',
         "Intended Audience :: Financial and Insurance Industry",
