@@ -32,6 +32,10 @@ jobs:
         pip install -r requirements.txt
         pip install pytest pytest-cov
     
+    - name: Install package
+      run: |
+        pip install -e .
+    
     - name: Lint with flake8
       run: |
         pip install flake8
