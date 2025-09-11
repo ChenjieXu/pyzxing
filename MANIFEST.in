@@ -1,2 +1,3 @@
 include *.md
-exclude LICENSE.txt
+exclude LICENSE*
+global-exclude LICENSE*
