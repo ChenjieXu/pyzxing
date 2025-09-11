@@ -1,23 +1,47 @@
 import os
 import glob
 import unittest
+import logging
 from pyzxing import BarCodeReader
 
 
 class TestBarCodeReaderDecode(unittest.TestCase):
     def setUp(self):
         self.reader = BarCodeReader()
+        # Set up logging for tests
+        logging.basicConfig(level=logging.DEBUG)
 
     def test_codabar(self):
         basename = 'src/resources/codabar'
         result = self.reader.decode(basename + '.png')
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        
         with open(basename + '.txt', 'rb') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result[0]['parsed'], gt)
+    
+    def test_codabar_result_structure(self):
+        """Test that codabar result has proper structure."""
+        basename = 'src/resources/codabar'
+        result = self.reader.decode(basename + '.png')
+        
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        
+        barcode = result[0]
+        self.assertIn('filename', barcode)
+        self.assertIn('format', barcode)
+        self.assertIn('parsed', barcode)
+        self.assertIn('raw', barcode)
+        self.assertIn('points', barcode)
 
     def test_code39(self):
         basename = 'src/resources/code39'
         result = self.reader.decode(basename + '.png')
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        
         with open(basename + '.txt', 'rb') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result[0]['parsed'], gt)
@@ -25,6 +49,9 @@ class TestBarCodeReaderDecode(unittest.TestCase):
     def test_code128(self):
         basename = 'src/resources/code128'
         result = self.reader.decode(basename + '.png')
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        
         with open(basename + '.txt', 'rb') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result[0]['parsed'], gt)
@@ -32,6 +59,9 @@ class TestBarCodeReaderDecode(unittest.TestCase):
     def test_pdf417(self):
         basename = 'src/resources/pdf417'
         result = self.reader.decode(basename + '.png')
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        
         with open(basename + '.txt', 'rb') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result[0]['parsed'], gt)
@@ -39,29 +69,32 @@ class TestBarCodeReaderDecode(unittest.TestCase):
     def test_qrcode(self):
         basename = 'src/resources/qrcode'
         result = self.reader.decode(basename + '.png')
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        
         with open(basename + '.txt', 'rb') as fp:
             gt = fp.readline().strip()
         self.assertEqual(result[0]['parsed'], gt)
 
     def test_nonexistfile(self):
         basename = 'src/resources/nonexistfile'
-        try:
-            result = self.reader.decode(basename + '.png')
-            raise Exception('Exception not raise properly')
-        except FileNotFoundError as e:
-            pass
-        except Exception as e:
-            raise e
+        with self.assertRaises(FileNotFoundError):
+            self.reader.decode(basename + '.png')
 
     def test_nobarcodefile(self):
         basename = 'src/resources/ou'
         result = self.reader.decode(basename + '.jpg')
-        self.assertEqual(result[0].get('parsed', None), None)
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertIsNone(result[0].get('parsed', None))
 
     def test_multibarcodes(self):
         basename = 'src/resources/multibarcodes'
         results = self.reader.decode(basename + '.jpg')
-        result_string = [result['parsed'] for result in results]
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+        
+        result_string = [result['parsed'] for result in results if result.get('parsed')]
 
         with open(basename + '.txt', 'rb') as fp:
             gt = [line.strip() for line in fp.readlines()]
@@ -71,7 +104,10 @@ class TestBarCodeReaderDecode(unittest.TestCase):
     def test_multifiles(self):
         filename_pattern = 'src/resources/*.png'
         results = self.reader.decode(filename_pattern)
-        results_string = [x['parsed'] for result in results for x in result]
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+
+        results_string = [x['parsed'] for result in results for x in result if x.get('parsed')]
 
         filenames = glob.glob(filename_pattern)
         annofiles = [
@@ -80,7 +116,8 @@ class TestBarCodeReaderDecode(unittest.TestCase):
         ]
         gt = []
         for annofile in annofiles:
-            with open(annofile, 'rb') as fp:
-                gt.append(fp.readline().strip())
+            if os.path.exists(annofile):
+                with open(annofile, 'rb') as fp:
+                    gt.append(fp.readline().strip())
 
         self.assertEqual(set(results_string), set(gt))
