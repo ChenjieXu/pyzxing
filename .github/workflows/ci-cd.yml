@@ -2,11 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [ dev, master, main ]
   pull_request:
     branches: [ master, main ]
-  release:
-    types: [created]
 
 jobs:
   test:
@@ -52,7 +50,7 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: github.ref == 'refs/heads/master'
     
     steps:
     - uses: actions/checkout@v4
@@ -77,36 +75,33 @@ jobs:
       with:
         files: dist/*
     
+    - name: Test built package
+      run: |
+        pip install dist/*.whl
+        python -c "
+        import pyzxing
+        from pyzxing import BarCodeReader
+        reader = BarCodeReader()
+        print('✅ Package installation test passed!')
+        "
+    
+    - name: Upload release assets
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: dist/*
+    
     - name: Publish to PyPI
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
         twine upload dist/*
-
-  publish-conda:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release'
     
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-    
-    - name: Install conda-build
-      run: |
-        pip install conda-build anaconda-client
-    
-    - name: Build conda package
-      run: |
-        conda build conda-recipe --output-folder ./
-    
-    - name: Upload to Anaconda
+    - name: Build and publish to Conda
       env:
         ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
+        pip install conda-build anaconda-client
+        conda build conda-recipe --output-folder ./
         anaconda upload --force --label main noarch/*.tar.bz2
