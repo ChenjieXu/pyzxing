@@ -15,7 +15,7 @@ DESCRIPTION = 'Python wrapper for ZXing Java library.'
 URL = 'https://github.com/ChenjieXu/pyzxing'
 EMAIL = 'cxuscience@gmail.com'
 AUTHOR = 'Chenjie Xu'
-REQUIRES_PYTHON = '>=3.7.0'
+REQUIRES_PYTHON = '>=3.8.0'
 
 # What packages are required for this module to be executed?
 with open('requirements.txt') as f:
