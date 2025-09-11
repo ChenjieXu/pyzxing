@@ -111,3 +111,5 @@ jobs:
         pip install conda-build==3.21.9 anaconda-client
         conda build conda-recipe --output-folder ./
         anaconda upload --force --label main noarch/*.tar.bz2
+        anaconda upload --force --label chenjiexu noarch/*.tar.bz2
+        anaconda upload --force --label conda-forge noarch/*.tar.bz2
