@@ -7,7 +7,7 @@ name = "pyzxing"
 dynamic = ["version"]
 description = "Python wrapper for ZXing Java library."
 readme = "README.md"
-license = "MIT"
+license = {text = "MIT"}
 authors = [
     {name = "Chenjie Xu", email = "cxuscience@gmail.com"},
 ]
@@ -34,6 +34,9 @@ dev = [
     "pytest-cov>=2.0.0",
     "psutil>=5.0.0",
 ]
+
+[tool.setuptools_scm]
+write_to = "pyzxing/_version.py"
 
 [tool.setuptools]
 packages = ["pyzxing", "src"]
