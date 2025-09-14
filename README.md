@@ -92,10 +92,3 @@ Or you may simply call it from command line
 ```bash
 python scripts/scanner.py -f /PATH/TO/FILE
 ```
-# TODO
-
-- [ ] Fix setup.py
-
-- [ ] Add multi and pure_barcode into parameters to resolve #25
-
-- [ ] Change Travis CI to GitHub Action
