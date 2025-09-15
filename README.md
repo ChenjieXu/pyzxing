@@ -46,8 +46,7 @@ pip install pyzxing
 Install from [Anaconda](https://anaconda.org/ChenjieXu/pyzxing). Now available on the public channel, conda-forge:
 
 ```bash
-conda install pyzxing # conda-forge channel
-conda install -c chenjiexu pyzxing # private channel
+conda install -c conda-forge pyzxing # conda-forge channel
 ```
 
 ## Build ZXing Library
