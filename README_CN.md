@@ -41,8 +41,7 @@ pip install pyzxing
 从[Anaconda](https://anaconda.org/ChenjieXu/pyzxing) 安装。现在可以从公开的channel——conda-forge中下载:
 
 ```bash
-conda install pyzxing # conda-forge channel
-conda install -c chenjiexu pyzxing # 私人的channel
+conda install -c conda-forge pyzxing # conda-forge频道
 ```
 
 ## 构建ZXing库
