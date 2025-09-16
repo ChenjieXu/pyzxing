@@ -81,3 +81,7 @@ results = reader.decode_array(img)
 ```bash
 python scripts/scanner.py -f /PATH/TO/FILE
 ```
+
+## 点赞趋势
+
+[![Star History Chart](https://api.star-history.com/svg?repos=chenjiexu/pyzxing&type=Date)](https://www.star-history.com/#chenjiexu/pyzxing&Date)

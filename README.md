@@ -91,3 +91,7 @@ Or you may simply call it from command line
 ```bash
 python scripts/scanner.py -f /PATH/TO/FILE
 ```
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=chenjiexu/pyzxing&type=Date)](https://www.star-history.com/#chenjiexu/pyzxing&Date)
