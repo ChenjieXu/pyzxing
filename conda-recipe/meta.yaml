@@ -22,7 +22,7 @@ build:
   noarch: python
   number: 0
   script:
-    - {{ PYTHON }} -m pip install source --no-deps --no-build-isolation -vv
+    - {{ PYTHON }} -m pip install ./source --no-deps --no-build-isolation -vv
     - {{ PYTHON }} source/scripts/install_conda_runner.py --jar runner/{{ runner_filename }} --fixture source/src/resources/qrcode.png --prefix {{ PREFIX }}
 
 requirements:
