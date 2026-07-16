@@ -10,7 +10,7 @@ on:
       release_tag:
         description: Draft GitHub release tag to prepare
         required: true
-        default: v1.2.0
+        default: v1.2.1
         type: string
   pull_request:
     branches:

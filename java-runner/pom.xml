@@ -6,17 +6,17 @@
 
   <groupId>io.github.chenjiexu</groupId>
   <artifactId>pyzxing-runner</artifactId>
-  <version>1.2.0</version>
+  <version>1.2.1</version>
   <name>pyzxing JSONL Runner</name>
   <description>Machine-readable ZXing runner for pyzxing</description>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <project.build.outputTimestamp>2026-07-16T00:00:00Z</project.build.outputTimestamp>
+    <project.build.outputTimestamp>2026-07-17T00:00:00Z</project.build.outputTimestamp>
     <maven.compiler.release>17</maven.compiler.release>
     <zxing.version>3.5.4</zxing.version>
-    <jackson.version>2.18.4</jackson.version>
+    <jackson.version>2.18.9</jackson.version>
     <junit.version>5.11.4</junit.version>
   </properties>
 
