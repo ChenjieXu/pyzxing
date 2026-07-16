@@ -315,11 +315,11 @@ jobs:
           python scripts/prepare_conda_local_recipe.py \
             --jar "runner-dist/$RUNNER_ASSET" \
             --output "$CONDA_RECIPE_COPY"
-          PACKAGE_PATH=$(conda build "$CONDA_RECIPE_COPY" \
+          PACKAGE_PATH=$(conda-build "$CONDA_RECIPE_COPY" \
             --python 3.13 \
             --output \
             --output-folder "$CONDA_OUTPUT_DIR")
-          conda build "$CONDA_RECIPE_COPY" \
+          conda-build "$CONDA_RECIPE_COPY" \
             --python 3.13 \
             --output-folder "$CONDA_OUTPUT_DIR"
           test -f "$PACKAGE_PATH"

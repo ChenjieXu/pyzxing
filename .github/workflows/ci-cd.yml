@@ -458,8 +458,8 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/verify_version_sync.py
-          PACKAGE_PATH=$(conda build conda-recipe --output --output-folder conda-output)
-          conda build conda-recipe --output-folder conda-output
+          PACKAGE_PATH=$(conda-build conda-recipe --output --output-folder conda-output)
+          conda-build conda-recipe --output-folder conda-output
           test -f "$PACKAGE_PATH"
           echo "PACKAGE_PATH=$PACKAGE_PATH" >> "$GITHUB_ENV"
 
