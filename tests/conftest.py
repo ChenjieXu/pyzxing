@@ -3,8 +3,11 @@ Pytest configuration and fixtures.
 """
 import os
 import tempfile
+from pathlib import Path
+
 import pytest
 from pyzxing import BarCodeReader
+from pyzxing.config import Config
 
 
 @pytest.fixture
@@ -34,10 +37,30 @@ def sample_barcode_files(test_data_dir):
     }
 
 
+@pytest.fixture(scope="session")
+def test_runner_jar():
+    """Return the explicitly selected Runner used by integration tests."""
+    configured = os.environ.get("PYZXING_TEST_JAR")
+    if configured:
+        path = Path(configured).expanduser().resolve()
+    else:
+        path = (
+            Path(__file__).resolve().parents[1]
+            / Config.BUILD_DIR
+            / Config.JAR_FILENAME
+        )
+    if not path.is_file():
+        pytest.fail(
+            "Integration Runner not found; set PYZXING_TEST_JAR or build java-runner: "
+            f"{path}"
+        )
+    return path
+
+
 @pytest.fixture
-def barcode_reader():
-    """Return a BarCodeReader instance."""
-    return BarCodeReader()
+def barcode_reader(test_runner_jar):
+    """Return a reader with an explicit integration-test Runner path."""
+    return BarCodeReader(jar_path=test_runner_jar)
 
 
 @pytest.fixture

@@ -1,0 +1,587 @@
+name: Verify and publish prepared release
+
+on:
+  workflow_dispatch:
+    inputs:
+      final_commit:
+        description: Full commit SHA tagged for the final release
+        required: true
+        type: string
+      release_tag:
+        description: Existing tag and draft GitHub release to publish
+        required: true
+        default: v1.2.0
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-release-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify final provenance and release gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read # Required to prove the exact final commit passed push CI.
+      contents: read
+    outputs:
+      default_branch: ${{ steps.identity.outputs.default_branch }}
+      final_commit: ${{ steps.identity.outputs.final_commit }}
+      prepared_release_tag: ${{ steps.prepared.outputs.prepared_release_tag }}
+      runner_asset: ${{ steps.provenance.outputs.runner_asset }}
+      runner_sha256: ${{ steps.provenance.outputs.runner_sha256 }}
+      runner_source_commit: ${{ steps.provenance.outputs.runner_source_commit }}
+      runner_reproducibility_sha256: ${{ steps.provenance.outputs.runner_reproducibility_sha256 }}
+
+    steps:
+      - name: Validate dispatch inputs
+        env:
+          FINAL_COMMIT: ${{ inputs.final_commit }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          if ! [[ "$FINAL_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "final_commit must be a lowercase full commit SHA" >&2
+            exit 2
+          fi
+          if ! [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "release_tag must be a v-prefixed semantic version" >&2
+            exit 2
+          fi
+
+      - name: Check out trusted default branch history
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select the tagged final merge commit
+        id: identity
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          FINAL_COMMIT: ${{ inputs.final_commit }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          git fetch --force origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$FINAL_COMMIT"
+          git merge-base --is-ancestor "$FINAL_COMMIT" "origin/$DEFAULT_BRANCH"
+          test "$(git rev-list --parents -n 1 "$FINAL_COMMIT" | wc -w)" -ge 3
+          git checkout --detach "$FINAL_COMMIT"
+          test "$(git rev-parse HEAD)" = "$FINAL_COMMIT"
+          echo "default_branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "final_commit=$FINAL_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - name: Require successful push CI for the exact final commit
+        env:
+          DEFAULT_BRANCH: ${{ steps.identity.outputs.default_branch }}
+          FINAL_COMMIT: ${{ inputs.final_commit }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run list \
+            --workflow ci-cd.yml \
+            --event push \
+            --branch "$DEFAULT_BRANCH" \
+            --commit "$FINAL_COMMIT" \
+            --status completed \
+            --limit 100 \
+            --json conclusion,event,headBranch,headSha,status,url,workflowName > final-push-ci.json
+          jq -e --arg branch "$DEFAULT_BRANCH" --arg sha "$FINAL_COMMIT" '
+            any(.[];
+              .headSha == $sha and
+              .headBranch == $branch and
+              .event == "push" and
+              .status == "completed" and
+              .conclusion == "success" and
+              .workflowName == "CI/CD Pipeline"
+            )
+          ' final-push-ci.json
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.14'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify finalized synchronized metadata
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          python scripts/verify_version_sync.py
+          PACKAGE_VERSION=$(python -c "import runpy; print(runpy.run_path('pyzxing/__version__.py')['__version__'])")
+          test "$RELEASE_TAG" = "v$PACKAGE_VERSION"
+
+      - name: Resolve the staging release for canonical Runner assets
+        id: prepared
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          RUNNER_SOURCE_COMMIT=$(python scripts/verify_version_sync.py --print-runner-source-commit)
+          test "${#RUNNER_SOURCE_COMMIT}" = "40"
+          echo "prepared_release_tag=runner-assets-$RELEASE_TAG-$RUNNER_SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - name: Verify staging draft and canonical asset set
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREPARED_RELEASE_TAG: ${{ steps.prepared.outputs.prepared_release_tag }}
+        run: |
+          gh release view "$PREPARED_RELEASE_TAG" \
+            --json assets,isDraft,isPrerelease,tagName > release-state.json
+          jq -e --arg tag "$PREPARED_RELEASE_TAG" '
+            .tagName == $tag and
+            .isPrerelease == false and
+            .isDraft == true
+          ' release-state.json
+          jq -r '.assets[].name' release-state.json > release-assets.txt
+          RUNNER_ASSET=$(python scripts/verify_version_sync.py --print-runner-filename)
+          for REQUIRED_ASSET in "$RUNNER_ASSET" "$RUNNER_ASSET.sha256" runner-source-commit.txt runner-reproducibility.txt; do
+            test "$(grep -Fxc "$REQUIRED_ASSET" release-assets.txt)" = "1"
+          done
+          test "$(grep -Ec '\.jar$' release-assets.txt)" = "1"
+          test "$(grep -Ec '\.jar\.sha256$' release-assets.txt)" = "1"
+
+      - name: Download canonical release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREPARED_RELEASE_TAG: ${{ steps.prepared.outputs.prepared_release_tag }}
+        run: |
+          RUNNER_ASSET=$(python scripts/verify_version_sync.py --print-runner-filename)
+          mkdir runner-dist
+          gh release download "$PREPARED_RELEASE_TAG" --dir runner-dist \
+            --pattern "$RUNNER_ASSET" \
+            --pattern "$RUNNER_ASSET.sha256" \
+            --pattern runner-source-commit.txt \
+            --pattern runner-reproducibility.txt
+
+      - name: Verify canonical provenance and frozen Java tree
+        id: provenance
+        env:
+          PREPARED_RELEASE_TAG: ${{ steps.prepared.outputs.prepared_release_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          RUNNER_ASSET=$(python scripts/verify_version_sync.py --print-runner-filename)
+          python scripts/verify_runner_release.py \
+            --jar "runner-dist/$RUNNER_ASSET" \
+            --checksum "runner-dist/$RUNNER_ASSET.sha256" \
+            --source-commit runner-dist/runner-source-commit.txt \
+            --reproducibility runner-dist/runner-reproducibility.txt \
+            --release-tag "$RELEASE_TAG"
+          RUNNER_SOURCE_COMMIT=$(tr -d '\r\n' < runner-dist/runner-source-commit.txt)
+          git cat-file -e "$RUNNER_SOURCE_COMMIT^{commit}"
+          git fetch --force origin "refs/tags/$PREPARED_RELEASE_TAG:refs/tags/$PREPARED_RELEASE_TAG"
+          test "$(git rev-parse "$PREPARED_RELEASE_TAG^{commit}")" = "$RUNNER_SOURCE_COMMIT"
+          git merge-base --is-ancestor "$RUNNER_SOURCE_COMMIT" HEAD
+          git diff --exit-code "$RUNNER_SOURCE_COMMIT" HEAD -- java-runner .mvn mvnw mvnw.cmd
+          RUNNER_SHA256=$(python scripts/verify_runner_artifact.py "runner-dist/$RUNNER_ASSET" --verify "runner-dist/$RUNNER_ASSET.sha256")
+          REPRODUCIBILITY_SHA256=$(sha256sum runner-dist/runner-reproducibility.txt | cut -d' ' -f1)
+          echo "runner_asset=$RUNNER_ASSET" >> "$GITHUB_OUTPUT"
+          echo "runner_sha256=$RUNNER_SHA256" >> "$GITHUB_OUTPUT"
+          echo "runner_source_commit=$RUNNER_SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "runner_reproducibility_sha256=$REPRODUCIBILITY_SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Select canonical Runner for all gates
+        run: python scripts/export_test_runner.py runner-dist
+
+      - name: Run Java and Python gates
+        run: |
+          chmod +x mvnw
+          ./mvnw -f java-runner/pom.xml clean verify
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" pyinstaller==6.21.0
+          python -m pytest tests/ -v
+          python -m pytest tests/ -q --cov=pyzxing --cov-report=term-missing
+          python -m ruff check .
+
+      - name: Verify durable issue evidence
+        run: python scripts/verify_release_evidence.py
+
+      - name: Build and verify Python distributions
+        env:
+          DECODE_FIXTURE: ${{ github.workspace }}/src/resources/qrcode.png
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          export SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)
+          python -m build --outdir built-dist
+          python -m twine check built-dist/*
+          test "$(find built-dist -maxdepth 1 -type f -name '*.whl' | wc -l)" = "1"
+          test "$(find built-dist -maxdepth 1 -type f -name '*.tar.gz' | wc -l)" = "1"
+          test "$(find built-dist -maxdepth 1 -type f | wc -l)" = "2"
+
+          mkdir dist
+          if gh release view "$RELEASE_TAG" \
+            --json assets,isDraft,isImmutable,isPrerelease,tagName > existing-final-release.json \
+            2> existing-final-release-error.txt; then
+            jq -e --arg tag "$RELEASE_TAG" '
+              .tagName == $tag and
+              .isPrerelease == false and
+              (.isDraft == true or .isDraft == false) and
+              (.isImmutable == true or .isImmutable == false)
+            ' existing-final-release.json
+            if [[ "$(jq -r '.isDraft' existing-final-release.json)" == "false" ]]; then
+              jq -e '
+                .isImmutable == true and
+                ([.assets[] | select(.name | endswith(".whl"))] | length) == 1 and
+                ([.assets[] | select(.name | endswith(".tar.gz"))] | length) == 1
+              ' existing-final-release.json
+              mapfile -t IMMUTABLE_DIST_NAMES < <(jq -r \
+                '.assets[].name | select(endswith(".whl") or endswith(".tar.gz"))' \
+                existing-final-release.json)
+              for DIST_NAME in "${IMMUTABLE_DIST_NAMES[@]}"; do
+                EXPECTED_DIGEST=$(jq -r --arg name "$DIST_NAME" \
+                  '.assets[] | select(.name == $name) | .digest // ""' \
+                  existing-final-release.json)
+                test "$EXPECTED_DIGEST" != ""
+                gh release download "$RELEASE_TAG" --dir dist --pattern "$DIST_NAME"
+                test "sha256:$(sha256sum "dist/$DIST_NAME" | cut -d' ' -f1)" = \
+                  "$EXPECTED_DIGEST"
+              done
+            else
+              cp built-dist/* dist/
+            fi
+          else
+            if grep -Fxq 'release not found' existing-final-release-error.txt || \
+              grep -Fq 'HTTP 404' existing-final-release-error.txt; then
+              cp built-dist/* dist/
+            else
+              cat existing-final-release-error.txt >&2
+              exit 1
+            fi
+          fi
+
+          python -m twine check dist/*
+          test "$(find dist -maxdepth 1 -type f -name '*.whl' | wc -l)" = "1"
+          test "$(find dist -maxdepth 1 -type f -name '*.tar.gz' | wc -l)" = "1"
+          test "$(find dist -maxdepth 1 -type f | wc -l)" = "2"
+          python -m venv .venv-release-wheel
+          .venv-release-wheel/bin/python -m pip install dist/*.whl
+          .venv-release-wheel/bin/python -I -c "import os; from pyzxing import BarCodeReader; results=BarCodeReader(jar_path=os.environ['PYZXING_TEST_JAR']).decode(os.environ['DECODE_FIXTURE']); assert results, results"
+          python -m venv .venv-release-sdist
+          .venv-release-sdist/bin/python -m pip install dist/*.tar.gz
+          .venv-release-sdist/bin/python -I -c "import os; from pyzxing import BarCodeReader; results=BarCodeReader(jar_path=os.environ['PYZXING_TEST_JAR']).decode(os.environ['DECODE_FIXTURE']); assert results, results"
+
+      - name: Preserve verified Python distribution bytes for publication
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verified-python-distributions
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Freeze and run explicit-JAR smoke harness
+        run: |
+          pyinstaller --clean --noconfirm --onefile \
+            --name pyzxing-frozen-smoke \
+            --add-data "$PYZXING_TEST_JAR:runner" \
+            --add-data "src/resources/qrcode.png:fixtures" \
+            scripts/pyinstaller_smoke.py
+          dist/pyzxing-frozen-smoke
+
+      - name: Set up pinned Miniforge for the pre-publication conda gate
+        uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
+        with:
+          miniforge-version: 26.3.2-3
+          activate-environment: conda-prepublish
+          python-version: '3.13'
+          channels: conda-forge
+          channel-priority: strict
+          auto-activate-base: false
+
+      - name: Install pinned conda-build
+        shell: bash -el {0}
+        run: conda install --yes conda-build=26.5.0
+
+      - name: Build and test the temporary local-asset conda recipe
+        env:
+          CONDA_OUTPUT_DIR: ${{ runner.temp }}/pyzxing-conda-output
+          CONDA_RECIPE_COPY: ${{ runner.temp }}/pyzxing-conda-recipe
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          COMMITTED_RECIPE_SHA256=$(sha256sum conda-recipe/meta.yaml | cut -d' ' -f1)
+          RUNNER_ASSET=$(python scripts/verify_version_sync.py --print-runner-filename)
+          python scripts/prepare_conda_local_recipe.py \
+            --jar "runner-dist/$RUNNER_ASSET" \
+            --output "$CONDA_RECIPE_COPY"
+          PACKAGE_PATH=$(conda build "$CONDA_RECIPE_COPY" \
+            --python 3.13 \
+            --output \
+            --output-folder "$CONDA_OUTPUT_DIR")
+          conda build "$CONDA_RECIPE_COPY" \
+            --python 3.13 \
+            --output-folder "$CONDA_OUTPUT_DIR"
+          test -f "$PACKAGE_PATH"
+          conda create --yes --name pyzxing-conda-prepublish "$PACKAGE_PATH"
+          conda run --name pyzxing-conda-prepublish python -c "from pathlib import Path; import os; from pyzxing import BarCodeReader; root = Path(os.environ['CONDA_PREFIX']) / 'share' / 'pyzxing'; results = BarCodeReader().decode(root / 'test-data' / 'qrcode.png'); assert any(result.get('text') or result.get('raw') for result in results), results"
+          test "$(sha256sum conda-recipe/meta.yaml | cut -d' ' -f1)" = "$COMMITTED_RECIPE_SHA256"
+          git diff --exit-code -- conda-recipe
+
+  publish:
+    name: Recheck assets and publish draft
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read # Required to retrieve same-run verified distribution artifacts.
+      contents: write # Required only after the read-only verification job succeeds.
+
+    steps:
+      - name: Check out repository history without persisted credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download the verified Python distribution bytes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verified-python-distributions
+          path: verified-dist/
+
+      - name: Recheck identity and canonical bytes, then publish once
+        env:
+          DEFAULT_BRANCH: ${{ needs.verify.outputs.default_branch }}
+          EXPECTED_FINAL_COMMIT: ${{ needs.verify.outputs.final_commit }}
+          PREPARED_RELEASE_TAG: ${{ needs.verify.outputs.prepared_release_tag }}
+          EXPECTED_SHA256: ${{ needs.verify.outputs.runner_sha256 }}
+          EXPECTED_SOURCE_COMMIT: ${{ needs.verify.outputs.runner_source_commit }}
+          EXPECTED_REPRODUCIBILITY_SHA256: ${{ needs.verify.outputs.runner_reproducibility_sha256 }}
+          GH_TOKEN: ${{ github.token }}
+          IMMUTABLE_RELEASES_TOKEN: ${{ secrets.IMMUTABLE_RELEASES_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RUNNER_ASSET: ${{ needs.verify.outputs.runner_asset }}
+        run: |
+          if ! [[ "$EXPECTED_FINAL_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "verified final commit output is invalid" >&2
+            exit 2
+          fi
+          if ! [[ "$EXPECTED_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "verified Runner source commit output is invalid" >&2
+            exit 2
+          fi
+          if ! [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "verified Runner SHA-256 output is invalid" >&2
+            exit 2
+          fi
+          if ! [[ "$EXPECTED_REPRODUCIBILITY_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "verified reproducibility SHA-256 output is invalid" >&2
+            exit 2
+          fi
+          if ! [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "release tag is invalid" >&2
+            exit 2
+          fi
+          if ! [[ "$RUNNER_ASSET" =~ ^pyzxing-runner-[0-9]+\.[0-9]+\.[0-9]+-zxing-[0-9]+\.[0-9]+\.[0-9]+\.jar$ ]]; then
+            echo "verified Runner asset output is invalid" >&2
+            exit 2
+          fi
+          test "$PREPARED_RELEASE_TAG" = "runner-assets-$RELEASE_TAG-$EXPECTED_SOURCE_COMMIT"
+          mapfile -t DIST_FILES < <(find verified-dist -maxdepth 1 -type f -print | sort)
+          test "${#DIST_FILES[@]}" = "2"
+          test "$(find verified-dist -maxdepth 1 -type f -name '*.whl' | wc -l)" = "1"
+          test "$(find verified-dist -maxdepth 1 -type f -name '*.tar.gz' | wc -l)" = "1"
+          PACKAGE_VERSION=$(python -c "import runpy; print(runpy.run_path('pyzxing/__version__.py')['__version__'])")
+          test "$(basename "$(find verified-dist -maxdepth 1 -type f -name '*.whl')")" = \
+            "pyzxing-$PACKAGE_VERSION-py3-none-any.whl"
+          test "$(basename "$(find verified-dist -maxdepth 1 -type f -name '*.tar.gz')")" = \
+            "pyzxing-$PACKAGE_VERSION.tar.gz"
+
+          mkdir runner-dist
+          gh release download "$PREPARED_RELEASE_TAG" --dir runner-dist \
+            --pattern "$RUNNER_ASSET" \
+            --pattern "$RUNNER_ASSET.sha256" \
+            --pattern runner-source-commit.txt \
+            --pattern runner-reproducibility.txt
+          test "$(sha256sum "runner-dist/$RUNNER_ASSET" | cut -d' ' -f1)" = "$EXPECTED_SHA256"
+          test "$(tr -d '\r\n' < runner-dist/runner-source-commit.txt)" = "$EXPECTED_SOURCE_COMMIT"
+          test "$(sha256sum runner-dist/runner-reproducibility.txt | cut -d' ' -f1)" = "$EXPECTED_REPRODUCIBILITY_SHA256"
+          grep -Fxq "$EXPECTED_SHA256  $RUNNER_ASSET" "runner-dist/$RUNNER_ASSET.sha256"
+          test "$(cat runner-dist/runner-reproducibility.txt)" = "$(printf 'reproducible=true\nsource_commit=%s' "$EXPECTED_SOURCE_COMMIT")"
+          RELEASE_ASSET_PATHS=(
+            "runner-dist/$RUNNER_ASSET"
+            "runner-dist/$RUNNER_ASSET.sha256"
+            runner-dist/runner-source-commit.txt
+            runner-dist/runner-reproducibility.txt
+            "${DIST_FILES[@]}"
+          )
+          test "${#RELEASE_ASSET_PATHS[@]}" = "6"
+
+          CURRENT_DEFAULT_BRANCH=$(gh api "repos/$GITHUB_REPOSITORY" --jq .default_branch)
+          test "$CURRENT_DEFAULT_BRANCH" = "$DEFAULT_BRANCH"
+          git fetch --force origin "refs/heads/$CURRENT_DEFAULT_BRANCH:refs/remotes/origin/$CURRENT_DEFAULT_BRANCH"
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          git fetch --force origin "refs/tags/$PREPARED_RELEASE_TAG:refs/tags/$PREPARED_RELEASE_TAG"
+          test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$EXPECTED_FINAL_COMMIT"
+          test "$(git rev-parse "$PREPARED_RELEASE_TAG^{commit}")" = "$EXPECTED_SOURCE_COMMIT"
+          git merge-base --is-ancestor "$EXPECTED_FINAL_COMMIT" "origin/$CURRENT_DEFAULT_BRANCH"
+          git merge-base --is-ancestor "$EXPECTED_SOURCE_COMMIT" "$EXPECTED_FINAL_COMMIT"
+          test "$(git rev-list --parents -n 1 "$EXPECTED_FINAL_COMMIT" | wc -w)" -ge 3
+
+          if ! gh release view "$RELEASE_TAG" \
+            --json assets,isDraft,isPrerelease,tagName > current-release-state.json \
+            2> current-release-error.txt; then
+            if grep -Fxq 'release not found' current-release-error.txt || \
+              grep -Fq 'HTTP 404' current-release-error.txt; then
+              test -n "$IMMUTABLE_RELEASES_TOKEN"
+              test "$(GH_TOKEN="$IMMUTABLE_RELEASES_TOKEN" gh api \
+                "repos/$GITHUB_REPOSITORY/immutable-releases" --jq .enabled)" = "true"
+              gh release create "$RELEASE_TAG" \
+                --draft \
+                --verify-tag \
+                --target "$EXPECTED_FINAL_COMMIT" \
+                --title "$RELEASE_TAG" \
+                --generate-notes \
+                --notes "Verified pyzxing release from preserved-history merge commit $EXPECTED_FINAL_COMMIT. Canonical Runner provenance and Python distributions were checked before publication."
+              gh release view "$RELEASE_TAG" \
+                --json assets,isDraft,isPrerelease,tagName > current-release-state.json
+            else
+              cat current-release-error.txt >&2
+              exit 1
+            fi
+          fi
+
+          jq -e --arg tag "$RELEASE_TAG" '
+            .tagName == $tag and
+            .isPrerelease == false and
+            (.isDraft == true or .isDraft == false)
+          ' current-release-state.json
+          CURRENT_IS_DRAFT=$(jq -r '.isDraft' current-release-state.json)
+          for RELEASE_ASSET_PATH in "${RELEASE_ASSET_PATHS[@]}"; do
+            RELEASE_ASSET_NAME=$(basename "$RELEASE_ASSET_PATH")
+            EXPECTED_DIGEST="sha256:$(sha256sum "$RELEASE_ASSET_PATH" | cut -d' ' -f1)"
+            ASSET_COUNT=$(jq --arg name "$RELEASE_ASSET_NAME" \
+              '[.assets[] | select(.name == $name)] | length' current-release-state.json)
+            if [[ "$ASSET_COUNT" -gt 1 ]]; then
+              echo "duplicate final release asset: $RELEASE_ASSET_NAME" >&2
+              exit 1
+            elif [[ "$ASSET_COUNT" == "1" ]]; then
+              test "$(jq -r --arg name "$RELEASE_ASSET_NAME" \
+                '.assets[] | select(.name == $name) | .digest // ""' \
+                current-release-state.json)" = "$EXPECTED_DIGEST"
+              mkdir -p final-existing
+              gh release download "$RELEASE_TAG" \
+                --dir final-existing \
+                --pattern "$RELEASE_ASSET_NAME"
+              cmp "$RELEASE_ASSET_PATH" "final-existing/$RELEASE_ASSET_NAME"
+            elif [[ "$CURRENT_IS_DRAFT" == "true" ]]; then
+              # No --clobber: a concurrent upload fails safely and is checked on rerun.
+              test -n "$IMMUTABLE_RELEASES_TOKEN"
+              test "$(GH_TOKEN="$IMMUTABLE_RELEASES_TOKEN" gh api \
+                "repos/$GITHUB_REPOSITORY/immutable-releases" --jq .enabled)" = "true"
+              gh release upload "$RELEASE_TAG" "$RELEASE_ASSET_PATH"
+            else
+              echo "public release is missing verified asset: $RELEASE_ASSET_NAME" >&2
+              exit 1
+            fi
+          done
+
+          gh release view "$RELEASE_TAG" \
+            --json assets,isDraft,isPrerelease,tagName > final-release-state.json
+          jq -e --arg tag "$RELEASE_TAG" '
+            .tagName == $tag and
+            .isPrerelease == false and
+            (.isDraft == true or .isDraft == false) and
+            (.assets | length) == 6
+          ' final-release-state.json
+          jq -r '.assets[].name' final-release-state.json > final-release-assets.txt
+          test "$(grep -Ec '\.jar$' final-release-assets.txt)" = "1"
+          test "$(grep -Ec '\.jar\.sha256$' final-release-assets.txt)" = "1"
+          test "$(grep -Ec '\.whl$' final-release-assets.txt)" = "1"
+          test "$(grep -Ec '\.tar\.gz$' final-release-assets.txt)" = "1"
+          mkdir final-release
+          for RELEASE_ASSET_PATH in "${RELEASE_ASSET_PATHS[@]}"; do
+            RELEASE_ASSET_NAME=$(basename "$RELEASE_ASSET_PATH")
+            EXPECTED_DIGEST="sha256:$(sha256sum "$RELEASE_ASSET_PATH" | cut -d' ' -f1)"
+            test "$(jq --arg name "$RELEASE_ASSET_NAME" \
+              '[.assets[] | select(.name == $name)] | length' \
+              final-release-state.json)" = "1"
+            test "$(jq -r --arg name "$RELEASE_ASSET_NAME" \
+              '.assets[] | select(.name == $name) | .digest // ""' \
+              final-release-state.json)" = "$EXPECTED_DIGEST"
+            gh release download "$RELEASE_TAG" \
+              --dir final-release \
+              --pattern "$RELEASE_ASSET_NAME"
+            cmp "$RELEASE_ASSET_PATH" "final-release/$RELEASE_ASSET_NAME"
+          done
+
+          CURRENT_DEFAULT_BRANCH=$(gh api "repos/$GITHUB_REPOSITORY" --jq .default_branch)
+          test "$CURRENT_DEFAULT_BRANCH" = "$DEFAULT_BRANCH"
+          git fetch --force origin "refs/heads/$CURRENT_DEFAULT_BRANCH:refs/remotes/origin/$CURRENT_DEFAULT_BRANCH"
+          git fetch --force origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$EXPECTED_FINAL_COMMIT"
+          git merge-base --is-ancestor "$EXPECTED_FINAL_COMMIT" "origin/$CURRENT_DEFAULT_BRANCH"
+          git merge-base --is-ancestor "$EXPECTED_SOURCE_COMMIT" "$EXPECTED_FINAL_COMMIT"
+
+          gh release view "$RELEASE_TAG" \
+            --json assets,isDraft,isImmutable,isPrerelease,tagName > prepublish-release-state.json
+          jq -e --arg tag "$RELEASE_TAG" '
+            .tagName == $tag and
+            .isPrerelease == false and
+            (.isDraft == true or .isDraft == false) and
+            (.isImmutable == true or .isImmutable == false) and
+            (.assets | length) == 6
+          ' prepublish-release-state.json
+          test "$(jq '[.assets[] | select(.name | endswith(".jar"))] | length' \
+            prepublish-release-state.json)" = "1"
+          test "$(jq '[.assets[] | select(.name | endswith(".jar.sha256"))] | length' \
+            prepublish-release-state.json)" = "1"
+          test "$(jq '[.assets[] | select(.name | endswith(".whl"))] | length' \
+            prepublish-release-state.json)" = "1"
+          test "$(jq '[.assets[] | select(.name | endswith(".tar.gz"))] | length' \
+            prepublish-release-state.json)" = "1"
+          mkdir prepublish-final
+          for RELEASE_ASSET_PATH in "${RELEASE_ASSET_PATHS[@]}"; do
+            RELEASE_ASSET_NAME=$(basename "$RELEASE_ASSET_PATH")
+            EXPECTED_DIGEST="sha256:$(sha256sum "$RELEASE_ASSET_PATH" | cut -d' ' -f1)"
+            test "$(jq --arg name "$RELEASE_ASSET_NAME" \
+              '[.assets[] | select(.name == $name)] | length' \
+              prepublish-release-state.json)" = "1"
+            test "$(jq -r --arg name "$RELEASE_ASSET_NAME" \
+              '.assets[] | select(.name == $name) | .digest // ""' \
+              prepublish-release-state.json)" = "$EXPECTED_DIGEST"
+            gh release download "$RELEASE_TAG" \
+              --dir prepublish-final \
+              --pattern "$RELEASE_ASSET_NAME"
+            cmp "$RELEASE_ASSET_PATH" "prepublish-final/$RELEASE_ASSET_NAME"
+          done
+
+          CURRENT_IS_DRAFT=$(jq -r '.isDraft' prepublish-release-state.json)
+          if [[ "$CURRENT_IS_DRAFT" == "true" ]]; then
+            test -n "$IMMUTABLE_RELEASES_TOKEN"
+            test "$(GH_TOKEN="$IMMUTABLE_RELEASES_TOKEN" gh api \
+              "repos/$GITHUB_REPOSITORY/immutable-releases" --jq .enabled)" = "true"
+            gh release edit "$RELEASE_TAG" --draft=false --latest --verify-tag
+          elif [[ "$CURRENT_IS_DRAFT" == "false" ]]; then
+            echo "Release $RELEASE_TAG is already public with the verified identity and assets."
+          else
+            echo "release draft state is invalid" >&2
+            exit 2
+          fi
+
+          gh release view "$RELEASE_TAG" \
+            --json assets,isDraft,isImmutable,isPrerelease,tagName > published-release-state.json
+          jq -e --arg tag "$RELEASE_TAG" '
+            .tagName == $tag and
+            .isDraft == false and
+            .isImmutable == true and
+            .isPrerelease == false and
+            (.assets | length) == 6
+          ' published-release-state.json
+          for RELEASE_ASSET_PATH in "${RELEASE_ASSET_PATHS[@]}"; do
+            RELEASE_ASSET_NAME=$(basename "$RELEASE_ASSET_PATH")
+            EXPECTED_DIGEST="sha256:$(sha256sum "$RELEASE_ASSET_PATH" | cut -d' ' -f1)"
+            test "$(jq --arg name "$RELEASE_ASSET_NAME" \
+              '[.assets[] | select(.name == $name)] | length' \
+              published-release-state.json)" = "1"
+            test "$(jq -r --arg name "$RELEASE_ASSET_NAME" \
+              '.assets[] | select(.name == $name) | .digest // ""' \
+              published-release-state.json)" = "$EXPECTED_DIGEST"
+          done

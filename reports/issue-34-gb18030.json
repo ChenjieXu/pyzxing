@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-07-15T22:01:28Z",
+  "issue": {
+    "repository": "ChenjieXu/pyzxing",
+    "number": 34,
+    "url": "https://github.com/ChenjieXu/pyzxing/issues/34"
+  },
+  "fixture": {
+    "path": "java-runner/src/test/resources/fixtures/gb18030/gb18030-byte-no-eci.png",
+    "provenance_path": "java-runner/src/test/resources/fixtures/gb18030/metadata.json",
+    "sha256": "ee4aa39fbfabbcbce4e41f9d6d7f3c1cc59af89c4ba09a9e43719fc34d828398",
+    "generator": {
+      "library": "Segno",
+      "library_version": "1.6.6",
+      "runtime": "CPython 3.12.11",
+      "uses_zxing": false
+    },
+    "qr": {
+      "version": 2,
+      "error_correction": "M",
+      "mask": 5,
+      "mode": "byte",
+      "eci": false
+    },
+    "payload_text": "生产许可证号：测试-123",
+    "payload_encoding": "GB18030",
+    "payload_hex": "c9fab2fad0edbfc9d6a4bac5a3bab2e2cad42d313233"
+  },
+  "decoder": {
+    "runner_version": "1.2.0",
+    "zxing_version": "3.5.4",
+    "artifact": "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+    "artifact_sha256": "d542daf2b3af3405ed5f949542acb287e176a3cdfd119edb504079c3033cd9cb",
+    "java": "openjdk 17.0.19"
+  },
+  "cases": {
+    "default_without_character_set": {
+      "command": [
+        "python",
+        "BarCodeReader(jar_path=runner).decode",
+        "--possible-formats=QR_CODE"
+      ],
+      "expected_text": "Éú²úÐí¿ÉÖ¤ºÅ£º²âÊÔ-123",
+      "actual_text": "Éú²úÐí¿ÉÖ¤ºÅ£º²âÊÔ-123",
+      "expected_byte_segment_hex": "c9fab2fad0edbfc9d6a4bac5a3bab2e2cad42d313233",
+      "actual_byte_segment_hex": "c9fab2fad0edbfc9d6a4bac5a3bab2e2cad42d313233",
+      "documents_no_eci_default_limitation": true,
+      "status": "pass"
+    },
+    "explicit_gb18030": {
+      "command": [
+        "python",
+        "BarCodeReader(jar_path=runner).decode",
+        "--character-set=GB18030",
+        "--possible-formats=QR_CODE"
+      ],
+      "expected_text": "生产许可证号：测试-123",
+      "actual_text": "生产许可证号：测试-123",
+      "expected_byte_segment_hex": "c9fab2fad0edbfc9d6a4bac5a3bab2e2cad42d313233",
+      "actual_byte_segment_hex": "c9fab2fad0edbfc9d6a4bac5a3bab2e2cad42d313233",
+      "metadata_character_set": "GB18030",
+      "status": "pass"
+    }
+  },
+  "test_references": [
+    "java-runner/src/test/java/io/github/chenjiexu/pyzxing/PyzxingRunnerTest.java",
+    "tests/test_issue_regressions.py::test_issue_34_gb18030_without_eci"
+  ],
+  "status": "pass"
+}
