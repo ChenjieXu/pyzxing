@@ -1,0 +1,302 @@
+{
+  "schema_version": 1,
+  "issue": {
+    "number": 35,
+    "title": "not scanning codes properly",
+    "url": "https://github.com/ChenjieXu/pyzxing/issues/35",
+    "state_at_audit": "OPEN",
+    "created_at": "2022-04-28T06:08:24Z",
+    "updated_at": "2025-09-11T03:34:47Z"
+  },
+  "status": "needs_reproducer",
+  "attachments": [
+    {
+      "case": "A",
+      "label": "new1",
+      "attachment_id": 165688220,
+      "attachment_uuid": "5b84da45-b752-415a-b144-a53f39e21497",
+      "source_url": "https://user-images.githubusercontent.com/12841788/165688220-5b84da45-b752-415a-b144-a53f39e21497.jpg",
+      "downloaded_filename": "new1.jpg",
+      "download_command": [
+        "curl",
+        "--fail",
+        "--location",
+        "--silent",
+        "--show-error",
+        "https://user-images.githubusercontent.com/12841788/165688220-5b84da45-b752-415a-b144-a53f39e21497.jpg",
+        "--output",
+        "new1.jpg"
+      ],
+      "downloaded_sha256": "59657944f84517840199113e833f7d4dbe098fe4232a8f793d2e316990873bf0",
+      "downloaded_bytes": 1882585,
+      "dimensions": {
+        "width": 3780,
+        "height": 3288
+      },
+      "reporter_ground_truth": {
+        "format": null,
+        "text": null
+      }
+    },
+    {
+      "case": "B",
+      "label": "P3111 00KHRTRND__20220313_14_4945_1",
+      "attachment_id": 165692086,
+      "attachment_uuid": "7d0f830d-b8b7-4e3f-b99d-483ec75a88b0",
+      "source_url": "https://user-images.githubusercontent.com/12841788/165692086-7d0f830d-b8b7-4e3f-b99d-483ec75a88b0.jpg",
+      "downloaded_filename": "P3111_00KHRTRND__20220313_14_4945_1.jpg",
+      "download_command": [
+        "curl",
+        "--fail",
+        "--location",
+        "--silent",
+        "--show-error",
+        "https://user-images.githubusercontent.com/12841788/165692086-7d0f830d-b8b7-4e3f-b99d-483ec75a88b0.jpg",
+        "--output",
+        "P3111_00KHRTRND__20220313_14_4945_1.jpg"
+      ],
+      "downloaded_sha256": "bf76fab9c60c56e444b74e1a3e9b2b86beeafdd64e4706c647987c078032fcd1",
+      "downloaded_bytes": 1806680,
+      "dimensions": {
+        "width": 3780,
+        "height": 3288
+      },
+      "reporter_ground_truth": {
+        "format": null,
+        "text": null
+      }
+    }
+  ],
+  "attachment_retention": "source_url_and_sha256_only_not_committed",
+  "decoder": {
+    "runner_version": "1.2.0",
+    "zxing_version": "3.5.4",
+    "artifact": "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+    "artifact_sha256": "d542daf2b3af3405ed5f949542acb287e176a3cdfd119edb504079c3033cd9cb",
+    "protocol": "UTF-8 JSONL schema_version 1"
+  },
+  "hint_matrix": {
+    "default": {
+      "command": [
+        "java",
+        "-jar",
+        "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+        "{attachment_file_uri}"
+      ],
+      "hints": {
+        "multi": false,
+        "try_harder": false,
+        "pure_barcode": false,
+        "possible_formats": null
+      }
+    },
+    "try_harder": {
+      "command": [
+        "java",
+        "-jar",
+        "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+        "{attachment_file_uri}",
+        "--try-harder"
+      ],
+      "hints": {
+        "multi": false,
+        "try_harder": true,
+        "pure_barcode": false,
+        "possible_formats": null
+      }
+    },
+    "code_39_only": {
+      "command": [
+        "java",
+        "-jar",
+        "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+        "{attachment_file_uri}",
+        "--possible-formats",
+        "CODE_39"
+      ],
+      "hints": {
+        "multi": false,
+        "try_harder": false,
+        "pure_barcode": false,
+        "possible_formats": [
+          "CODE_39"
+        ]
+      }
+    },
+    "try_harder_code_39": {
+      "command": [
+        "java",
+        "-jar",
+        "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+        "{attachment_file_uri}",
+        "--try-harder",
+        "--possible-formats",
+        "CODE_39"
+      ],
+      "hints": {
+        "multi": false,
+        "try_harder": true,
+        "pure_barcode": false,
+        "possible_formats": [
+          "CODE_39"
+        ]
+      }
+    },
+    "pure_barcode": {
+      "command": [
+        "java",
+        "-jar",
+        "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+        "{attachment_file_uri}",
+        "--pure-barcode"
+      ],
+      "hints": {
+        "multi": false,
+        "try_harder": false,
+        "pure_barcode": true,
+        "possible_formats": null
+      }
+    },
+    "wrapper_defaults": {
+      "command": [
+        "java",
+        "-jar",
+        "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+        "{attachment_file_uri}",
+        "--multi",
+        "--try-harder"
+      ],
+      "hints": {
+        "multi": true,
+        "try_harder": true,
+        "pure_barcode": false,
+        "possible_formats": null
+      }
+    },
+    "wrapper_defaults_code_39": {
+      "command": [
+        "java",
+        "-jar",
+        "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+        "{attachment_file_uri}",
+        "--multi",
+        "--try-harder",
+        "--possible-formats",
+        "CODE_39"
+      ],
+      "hints": {
+        "multi": true,
+        "try_harder": true,
+        "pure_barcode": false,
+        "possible_formats": [
+          "CODE_39"
+        ]
+      }
+    }
+  },
+  "results": {
+    "A": {
+      "attachment_id": 165688220,
+      "cases": {
+        "default": {
+          "exit_code": 0,
+          "status": "not_found",
+          "format": null,
+          "text": null
+        },
+        "try_harder": {
+          "exit_code": 0,
+          "status": "ok",
+          "format": "CODE_39",
+          "text": "XA6MG   2KF     "
+        },
+        "code_39_only": {
+          "exit_code": 0,
+          "status": "not_found",
+          "format": null,
+          "text": null
+        },
+        "try_harder_code_39": {
+          "exit_code": 0,
+          "status": "ok",
+          "format": "CODE_39",
+          "text": "XA6MG   2KF     "
+        },
+        "pure_barcode": {
+          "exit_code": 0,
+          "status": "not_found",
+          "format": null,
+          "text": null
+        },
+        "wrapper_defaults": {
+          "exit_code": 0,
+          "status": "ok",
+          "format": "CODE_39",
+          "text": "XA6MG   2KF     "
+        },
+        "wrapper_defaults_code_39": {
+          "exit_code": 0,
+          "status": "ok",
+          "format": "CODE_39",
+          "text": "XA6MG   2KF     "
+        }
+      }
+    },
+    "B": {
+      "attachment_id": 165692086,
+      "cases": {
+        "default": {
+          "exit_code": 0,
+          "status": "not_found",
+          "format": null,
+          "text": null
+        },
+        "try_harder": {
+          "exit_code": 0,
+          "status": "not_found",
+          "format": null,
+          "text": null
+        },
+        "code_39_only": {
+          "exit_code": 0,
+          "status": "not_found",
+          "format": null,
+          "text": null
+        },
+        "try_harder_code_39": {
+          "exit_code": 0,
+          "status": "not_found",
+          "format": null,
+          "text": null
+        },
+        "pure_barcode": {
+          "exit_code": 0,
+          "status": "not_found",
+          "format": null,
+          "text": null
+        },
+        "wrapper_defaults": {
+          "exit_code": 0,
+          "status": "not_found",
+          "format": null,
+          "text": null
+        },
+        "wrapper_defaults_code_39": {
+          "exit_code": 0,
+          "status": "not_found",
+          "format": null,
+          "text": null
+        }
+      }
+    }
+  },
+  "conclusion": {
+    "classification": "needs_reproducer",
+    "summary": "Attachment A decodes as CODE_39 when TRY_HARDER is enabled. Attachment B does not decode under the recorded hint matrix, but the reporter did not provide its expected symbology or text, so the remaining behavior cannot yet be classified as a pyzxing or ZXing defect.",
+    "required_follow_up": [
+      "Expected symbology and exact text for attachment B",
+      "A minimal uncropped original if attachment B was transformed before upload",
+      "The caller code and decode hints used when the issue was observed"
+    ]
+  }
+}

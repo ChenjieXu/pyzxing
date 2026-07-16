@@ -1,0 +1,17 @@
+{
+  "fixture": "basic.png",
+  "sha256": "ec5cbd00290327334681fc8a83efce528feaa8a285f70d722b5e5df2f21841f7",
+  "payload": "PYZXING-DATAMATRIX-1.2.0",
+  "generator": "com.google.zxing.MultiFormatWriter",
+  "generator_version": "3.5.4",
+  "format": "DATA_MATRIX",
+  "symbol_size": [
+    160,
+    160
+  ],
+  "canvas_size": [
+    240,
+    240
+  ],
+  "quiet_zone_pixels": 40
+}

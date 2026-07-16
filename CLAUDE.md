@@ -4,30 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-这是一个 ZXing 库的 Python 包装器，用于条形码和二维码识别。项目通过 Java 子模块和预编译 JAR 文件提供 ZXing 功能的 Python 接口。
+这是一个 ZXing 库的 Python 包装器，用于条形码和二维码识别。项目通过自有 JSONL Java Runner 和经过 SHA-256 校验的 Release JAR 提供稳定的 Python 接口。
 
 ## 常用命令
 
 ### 构建和安装
 ```bash
 # 安装依赖
-pip install -r requirements.txt
+python -m pip install -e '.[dev]'
 
 # 安装包
-python setup.py install
+python -m pip install .
 
-# 自动化 JAR 构建（推荐）
-./scripts/build_jar.sh          # Linux/macOS
-./scripts/build_jar.bat         # Windows
-./scripts/build_and_release.sh  # 完整发布流程
-
-# 手动构建 ZXing Java 库
-git submodule init
-git submodule update
-cd zxing
-mvn install -DskipTests -Dmaven.javadoc.skip=true
-cd javase
-mvn package -DskipTests -Dmaven.javadoc.skip=true assembly:single
+# 构建并测试基于 ZXing 3.5.4 的 Java Runner
+./mvnw -f java-runner/pom.xml clean verify
 ```
 
 ### 测试
@@ -50,47 +40,55 @@ python -m pytest tests/test_edge_cases.py -v
 # 使用命令行扫描器
 python scripts/scanner.py -f /PATH/TO/FILE
 
-# 测试 JAR 功能
-java -jar releases/javase-*.jar --help
+# 测试指定 JAR
+PYZXING_TEST_JAR=/absolute/path/to/pyzxing-runner.jar python -m pytest tests/test_decode.py -v
 ```
 
 ## 核心架构
 
 ### 主要组件
 1. **BarCodeReader** (`pyzxing/reader.py`): 核心条码读取器类
-   - 三级 JAR 文件查找策略：本地构建 → 缓存目录 → 下载
+   - 三级 JAR 文件查找策略：显式 `jar_path` → 本地 Runner → 已校验缓存/安全下载
    - 支持单文件和多文件并行处理（使用 joblib）
    - 支持 numpy 数组输入（需要 opencv-python）
    - 智能并行处理阈值（Config.PARALLEL_THRESHOLD = 3）
 
-2. **Config** (`pyzxing/config.py`): 中央化配置管理
-   - 版本控制和 ZXing 版本管理
-   - 性能设置和路径配置
-   - JAR URL 生成和缓存目录管理
+2. **PyzxingRunner** (`java-runner/`): ZXing 3.5.4 JSONL 边界
+   - stdout 每行一个 `schema_version=1` JSON 对象，诊断只写 stderr
+   - 二进制统一使用 Base64，同时导出 raw codewords 与 BYTE segments
+   - 一维码方向原样导出 ZXing 元数据；仅对 QR 有序定位点推导几何方向
 
-3. **PlatformUtils** (`pyzxing/platform_utils.py`): 跨平台兼容性
+3. **Config** (`pyzxing/config.py`): 中央化配置管理
+   - 版本控制和 ZXing 版本管理
+   - canonical Runner 文件名、Release、SHA-256 和源提交
+   - 性能设置、路径配置和缓存目录管理
+
+4. **PlatformUtils** (`pyzxing/platform_utils.py`): 跨平台兼容性
    - 平台特定的路径规范化
    - Java 命令和环境变量设置
    - 编码处理（Windows 支持中文编码）
 
-4. **Utils** (`pyzxing/utils.py`): 工具函数
+5. **Utils** (`pyzxing/utils.py`): 工具函数
    - 文件下载和进度显示
    - 缓存目录管理
 
 ### 依赖管理
-- 核心依赖：`setuptools`, `joblib`, `numpy`, `pytest`, `psutil`
+- 核心依赖：`joblib`, `numpy`
+- 开发依赖：`pytest`, `pytest-cov`, `psutil`, `ruff`
 - 可选依赖：`opencv-python`（用于 `decode_array()` 方法）
 
 ### ZXing JAR 文件策略
 项目采用三级查找策略：
-1. 检查本地构建目录 `zxing/javase/target/`
-2. 检查平台特定缓存目录（`~/.local/pyzxing` 或 `%LOCALAPPDATA%/pyzxing`）
-3. 从 GitHub releases 下载预编译 JAR 文件
+1. 使用显式传入的 `jar_path`
+2. 检查本地构建目录 `java-runner/target/`
+3. 检查平台特定缓存或从 GitHub Release 原子下载，并验证固定 SHA-256
 
 ### 自动化构建系统
-- **build_jar.sh/bat**: 跨平台 JAR 构建脚本
-- **build_and_release.sh**: 完整发布准备脚本
-- **GitHub Actions**: 自动化 CI/CD 管道，支持多平台测试和自动发布
+- **GitHub Actions**: 多平台测试、单次构建、PyPI Trusted Publishing 和 GitHub Release
+- **prepare-runner.yml**: 从冻结提交构建两次并提升 canonical Runner 到草稿 Release
+- **ci-cd.yml**: 普通 CI 使用构建产物；Release CI 只使用已提升的 canonical JAR
+- **conda recipe/feedstock**: recipe 安装 canonical JAR 到 `$CONDA_PREFIX/share/pyzxing/runner`，Release CI 用默认 reader 做真实解码；正式发布仍由独立 feedstock 完成
+- **RELEASING.md**: 两阶段 JAR、版本发布和 conda-forge 更新步骤
 
 ### 测试架构
 - `test_decode.py`: 基本解码功能测试
@@ -100,19 +98,24 @@ java -jar releases/javase-*.jar --help
 
 ## 开发注意事项
 
-- **版本同步**: 修改 ZXing 版本时需同时更新 `config.py` 和子模块
+- **版本同步**: 修改 Runner/ZXing 版本时需同步 Maven、`config.py`、版本文件和 Release 资产
 - **跨平台兼容**: 使用 `PlatformUtils` 处理平台差异
-- **编码处理**: Windows 环境需要特殊处理中文编码
+- **编码处理**: JSONL 固定 UTF-8；二进制不得通过文本重新编码，使用 `byte_segments`
 - **并行处理**: 文件数量少于 3 个时自动使用顺序处理
-- **错误处理**: 所有子进程调用都包含返回码检查和错误日志
+- **错误处理**: Java 启动、失败和超时通过 `DecodeError` 子类明确报告
+- **协议版本**: Java 错误码是 schema 的枚举式组成；新增、改名或删除错误码时必须同步 Python allow-list/测试，并评估 schema version 升级
+- **方向语义**: 顶层 `orientation` 是归一化的图片顺时针角度；`metadata.orientation` 保留 ZXing 原始纠正角度
 - **缓存管理**: JAR 文件自动缓存到用户目录，避免重复下载
-- **条码格式支持**: QR Code, Code 128, Code 39, PDF417, Codabar 等
+- **范围**: 1.2.0 处理正确性和发布基础设施；持久 JVM 摄像头模式属于 1.3.0
 
 ## CI/CD 流程
 
 项目使用 GitHub Actions 实现完整的自动化流程：
 - 多平台测试（Linux, Windows, macOS）
-- 多 Python 版本测试（3.7-3.11）
-- 自动 JAR 构建
-- PyPI 和 Conda 发布
+- 多 Python 版本测试（3.8-3.14）
+- Java Runner 的 JUnit、JSONL smoke 和 canonical 资产校验
+- 版本/资产名同步校验与真实 PyInstaller one-file 解码 smoke
+- `publish-release.yml` 在严格校验 final Config、canonical 草稿资产、冻结 Java tree 和持久 issue 证据后自动发布草稿 Release
+- GitHub Release 资产完成后才执行 PyPI OIDC 发布
+- Conda 由 conda-forge feedstock 独立发布
 - 代码覆盖率报告

@@ -34,7 +34,7 @@ Installing from [Github source](https://github.com/ChenjieXu/pyzxing.git) is rec
 ```bash
 git clone https://github.com/ChenjieXu/pyzxing.git
 cd pyzxing
-python setup.py install
+python -m pip install .
 ```
 
 It is also possible to install from [PyPI](https://pypi.org/project/pyzxing/):
@@ -49,42 +49,162 @@ Install from [Anaconda](https://anaconda.org/ChenjieXu/pyzxing). Now available o
 conda install -c conda-forge pyzxing # conda-forge channel
 ```
 
-## Build ZXing Library
+The 1.2 recipe packages the checksum-pinned canonical Runner under
+`$CONDA_PREFIX/share/pyzxing/runner`. `BarCodeReader()` discovers and verifies
+that copy before considering a network download; release CI builds the conda
+package and proves a default-reader decode without passing `jar_path`.
 
-A ready-to-go jar file is available with release, but I can not guarantee that this file will work properly on your PC.
-You may run test script before building ZXing. Pyzxing will download compiled Jar file automatically and call unit test.
-For those who haven't installed Java, I strongly recommend you to install openjdk8.
+## Java Runner
+
+PyZXing 1.2 uses a pyzxing-owned executable Runner built with ZXing 3.5.4 and
+requires Java 17 or newer on `PATH`. The exact JAR and its `.sha256` file are
+published with each GitHub Release. PyZXing verifies the checksum before using
+a cached or downloaded JAR.
+
+To build the Runner from source:
 
 ```bash
-python -m unittest tests.test_decode
+./mvnw -f java-runner/pom.xml clean verify
 ```
 
-If failed, build ZXing using following commands.
+On Windows, use `mvnw.cmd` instead. You can bypass downloading and select a
+reviewed local build explicitly:
 
-```bash
-git submodule init
-git submodule update
-cd zxing
-mvn install -DskipTests
-cd javase
-mvn -DskipTests package assembly:single
+```python
+from pyzxing import BarCodeReader
+
+reader = BarCodeReader(jar_path="/absolute/path/to/pyzxing-runner.jar")
 ```
 
 ## Quick Start
 
 ```python
-from pyzxing import BarCodeReader
+from pyzxing import BarCodeReader, DecodeError
 
 reader = BarCodeReader()
-results = reader.decode('/PATH/TO/FILE')
-# Or file pattern for multiple files
-results = reader.decode('/PATH/TO/FILES/*.png')
+results = reader.decode(
+    "/PATH/TO/FILE",
+    multi=True,
+    try_harder=True,
+    pure_barcode=False,
+    character_set=None,
+    possible_formats=["QR_CODE", "DATA_MATRIX"],
+)
+
+# A glob decodes multiple files and still returns one flat result list.
+results = reader.decode("/PATH/TO/FILES/*.png")
 print(results)
-# Or a numpy array
-# Requires additional installation of opencv
-# pip install opencv-python
+
+# NumPy arrays require: pip install opencv-python
 results = reader.decode_array(img)
 ```
+
+Java startup failures, invalid images, and timeouts raise `DecodeError` subclasses
+instead of being reported as an empty barcode result.
+
+### Result schema
+
+The 1.2 result is additive: the legacy byte-valued fields remain available,
+while the machine-readable Runner adds lossless binary and orientation fields.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `filename` | `bytes` | Exact input URI echoed by the Runner. |
+| `format`, `type` | `bytes` | Legacy ZXing format and parsed-result type. |
+| `raw`, `parsed` | `bytes` | Legacy UTF-8 encodings of `text` and `parsed_text`. |
+| `text`, `parsed_text` | `str` | Decoded text and ZXing's parsed display text. |
+| `raw_bytes` | `bytes \| None` | ZXing raw result bytes; for QR this is not necessarily the original byte-mode payload. |
+| `byte_segments` | `list[bytes]` | Lossless BYTE-mode payload segments, in order. |
+| `num_bits` | `int \| None` | Valid bit count in `raw_bytes`. |
+| `points` | `list[tuple[float, float]]` | ZXing result points as `(x, y)` pairs. |
+| `orientation` | `0 \| 90 \| 180 \| 270 \| None` | Clockwise rotation from upright. |
+| `orientation_source` | `str` | `metadata`, QR-only `derived`, or `unavailable`. |
+| `metadata` | `dict` | Stable allow-listed metadata, including symbology/error-correction fields when available. |
+
+For binary QR data, use `byte_segments`; do not recover bytes by re-encoding
+`text`. `raw_bytes` and `byte_segments` intentionally expose different ZXing
+concepts. A no-barcode image retains the 1.x compatibility placeholder
+containing only `filename`.
+
+`orientation_source` is part of the meaning. The top-level `orientation` is
+always normalized to the image's clockwise rotation from upright. For 1D
+formats, `metadata.orientation` preserves ZXing's raw counter-clockwise
+correction value, so a clockwise-90 image has top-level `orientation=90` while
+raw metadata may be `270`. ZXing does not supply QR orientation metadata, so
+`derived` QR values use the geometric clockwise angle of ordered finder points.
+If that geometry is insufficient, the value is `None` rather than a guess.
+Metadata may also include integer
+`errors_corrected` and `erasures_corrected` values when ZXing provides them.
+
+Runner stdout is protocol schema version 1. Error codes are enum-like protocol
+values: adding, renaming, or removing a Java error code requires matching Python
+validation/tests and an explicit schema-version compatibility review. Unknown
+codes are rejected instead of being silently accepted.
+
+### Decode hints and format scope
+
+- `multi` scans for more than one barcode in an image.
+- `try_harder` enables ZXing's more exhaustive path.
+- `pure_barcode` is for an unrotated, monochrome barcode image without surrounding content.
+- `character_set` supplies a charset hint such as `GB18030` when the symbol does not carry one.
+- `possible_formats` accepts ZXing 3.5.4 `BarcodeFormat` names and restricts decoding to those formats.
+
+For issue #34's committed no-ECI fixture, the default decoder preserves the
+exact GB18030 bytes in `byte_segments` but cannot infer the intended text
+encoding; `character_set="GB18030"` returns the expected Chinese text. For
+issue #38's exact 192-value corpus, the recorded ZXing 3.5.4 Runner decodes
+23/192 in default/try-harder/QR-only modes and 192/192 with
+`pure_barcode=True`. ZXing 3.4.1 decoded 19/192 by default and also 192/192 in
+pure-barcode mode. The upgrade is therefore not presented as a general detector
+fix; the committed reports preserve the limitation and the proven hint.
+
+PyZXing is a decoder, not a QR generator; use a library such as
+[Segno](https://segno.readthedocs.io/) for generation. The exact status of the
+six GS1 variants requested in issue #43 is:
+
+| Requested variant | Candidate ZXing 3.5.4 route | Committed project fixture | 1.2 status |
+| --- | --- | --- | --- |
+| GS1 DataBar Expanded | `RSS_EXPANDED` | None | Unverified |
+| GS1 DataBar Expanded Stacked | `RSS_EXPANDED` | None | Unverified |
+| GS1 DataBar OmniDirectional | `RSS_14` | None | Unverified |
+| GS1 DataBar Stacked | `RSS_14` | None | Unverified |
+| GS1 DataBar Stacked Omnidirectional | `RSS_14` | None | Unverified |
+| GS1 DataBar Truncated | `RSS_14` | None | Unverified |
+
+Generic QR and Code 128 fixtures do not prove these DataBar variants. The
+Runner exposes ZXing's `symbology_identifier` metadata when present, but that is
+not application-level GS1 validation. Issue #43 stays open until each claimed
+variant has a redistributable fixture and an asserted payload result.
+
+### PyInstaller
+
+Bundle the exact release Runner and pass its unpacked path explicitly:
+
+```bash
+# Linux and macOS; use `;runner` instead of `:runner` on Windows.
+pyinstaller --add-data "/absolute/path/to/pyzxing-runner.jar:runner" app.py
+```
+
+```python
+import sys
+from pathlib import Path
+
+from pyzxing import BarCodeReader
+
+bundle_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+runner_jar = next((bundle_dir / "runner").glob("*.jar"))
+reader = BarCodeReader(jar_path=runner_jar)
+```
+
+CI freezes and executes `scripts/pyinstaller_smoke.py`, so this path is tested
+from an actual one-file bundle rather than only from normal Python.
+
+### Camera use
+
+`decode_array()` is a one-shot API: it writes a temporary image and starts one
+JVM per call. It is not a real-time camera loop. Persistent-JVM camera support
+is deferred to 1.3.0 so process lifecycle and resource cleanup can be designed
+and measured explicitly.
 
 Or you may simply call it from command line
 

@@ -1,50 +1,62 @@
 {% set name = "pyzxing" %}
-{% set version = "1.1.1" %} {# Sync with pyzxing/__version__.py #}
+{% set version = "1.2.0" %}
+{% set runner_version = "1.2.0" %}
+{% set zxing_version = "3.5.4" %}
+{% set runner_filename = "pyzxing-runner-1.2.0-zxing-3.5.4.jar" %}
+{% set runner_sha256 = "0000000000000000000000000000000000000000000000000000000000000000" %}
+{% set runner_source_commit = "" %}
 
 package:
   name: {{ name|lower }}
   version: {{ version }}
 
 source:
-  path: ..
+  - path: ..
+    folder: source
+  - url: https://github.com/ChenjieXu/pyzxing/releases/download/v{{ runner_version }}/{{ runner_filename }}
+    fn: {{ runner_filename }}
+    sha256: {{ runner_sha256 }}
+    folder: runner
 
 build:
   noarch: python
   number: 0
-  script: {{ PYTHON }} -m pip install . -vv
+  script:
+    - {{ PYTHON }} -m pip install source --no-deps --no-build-isolation -vv
+    - {{ PYTHON }} source/scripts/install_conda_runner.py --jar runner/{{ runner_filename }} --fixture source/src/resources/qrcode.png --prefix {{ PREFIX }}
 
 requirements:
   host:
-    - python >=3.8,<3.13
+    - python >=3.8
     - pip
     - setuptools
     - wheel
   run:
-    - python >=3.8,<3.13
+    - python >=3.8
     - numpy
     - joblib
-    - setuptools
+    - openjdk >=17,<18
 
 test:
   imports:
     - pyzxing
   requires:
-    - pytest
+    - pip
   commands:
-    - python -c "import pyzxing; print('PyZXing imported successfully')"
+    - pip check
+    - java -version
+    - python -c "from pathlib import Path; import os; from pyzxing import BarCodeReader; root = Path(os.environ['CONDA_PREFIX']) / 'share' / 'pyzxing'; results = BarCodeReader().decode(root / 'test-data' / 'qrcode.png'); assert any(result.get('text') or result.get('raw') for result in results), results"
 
 about:
   home: https://github.com/ChenjieXu/pyzxing
   license: MIT
   license_family: MIT
-  summary: 'Python wrapper for ZXing Java library.'
+  license_file: source/LICENSE
+  summary: Python wrapper for ZXing Java library.
   description: |
-    PyZXing is a Python wrapper for the ZXing (Zebra Crossing) library,
-    which is a multi-format 1D/2D barcode image processing library
-    implemented in Java, with ports to other languages.
-    
-    This package provides a simple Python interface to decode barcodes
-    and QR codes from images using the ZXing Java library via subprocess calls.
+    PyZXing is a Python wrapper for the ZXing (Zebra Crossing) library.
+    The conda package installs the release's checksum-pinned canonical Runner
+    and verifies it with a real decode during the package test phase.
 
 extra:
   recipe-maintainers:
