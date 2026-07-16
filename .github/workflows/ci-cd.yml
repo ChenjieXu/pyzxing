@@ -2,116 +2,589 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ dev, master, main ]
+    branches: [dev, master, main]
   pull_request:
-    branches: [ master, main ]
+    branches: [master, main]
   release:
-    types: [created]
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.release.tag_name || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'release' }}
+
+env:
+  RUNNER_ARTIFACT_NAME: runner-distribution
 
 jobs:
-  test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest pytest-cov
-    
-    - name: Install package
-      run: |
-        pip install -e .
-    
-    - name: Lint with flake8
-      run: |
-        pip install flake8
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    
-    - name: Test with pytest
-      run: |
-        pytest tests/ -v --cov=pyzxing --cov-report=xml
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.14'
+
+      - name: Install Ruff
+        run: python -m pip install ruff
+
+      - name: Verify synchronized release metadata
+        run: python scripts/verify_version_sync.py --allow-placeholders
+
+      - name: Lint
+        run: python -m ruff check .
+
+  java-build:
+    name: Build and test Runner
+    if: github.event_name != 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.14'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build and run JUnit tests
+        run: |
+          chmod +x mvnw
+          ./mvnw -f java-runner/pom.xml clean verify
+
+      - name: Locate executable Runner
+        run: |
+          RUNNER_FINAL_NAME=$(./mvnw -f java-runner/pom.xml help:evaluate -Dexpression=project.build.finalName -q -DforceStdout)
+          RUNNER_JAR="$GITHUB_WORKSPACE/java-runner/target/${RUNNER_FINAL_NAME}.jar"
+          test -f "$RUNNER_JAR"
+          echo "RUNNER_JAR=$RUNNER_JAR" >> "$GITHUB_ENV"
+
+      - name: Smoke-test JSONL protocol
+        run: |
+          INPUT_URI=$(python -c "from pathlib import Path; print(Path('src/resources/qrcode.png').resolve().as_uri())")
+          java -jar "$RUNNER_JAR" --possible-formats QR_CODE "$INPUT_URI" > runner-smoke.jsonl
+          python -c "import json; records=[json.loads(line) for line in open('runner-smoke.jsonl', encoding='utf-8')]; assert records and all(record['schema_version'] == 1 and record['status'] == 'ok' for record in records), records"
+
+      - name: Package Runner artifact
+        run: |
+          mkdir runner-dist
+          cp "$RUNNER_JAR" "runner-dist/$(basename "$RUNNER_JAR")"
+          python scripts/verify_runner_artifact.py "runner-dist/$(basename "$RUNNER_JAR")" --write "runner-dist/$(basename "$RUNNER_JAR").sha256"
+
+      - name: Upload Runner artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.RUNNER_ARTIFACT_NAME }}
+          path: runner-dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  canonical-runner:
+    name: Verify canonical release Runner
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.14'
+
+      - name: Resolve configured Runner asset
+        run: |
+          RUNNER_ASSET_NAME=$(python scripts/verify_version_sync.py --print-runner-filename)
+          test -n "$RUNNER_ASSET_NAME"
+          echo "RUNNER_ASSET_NAME=$RUNNER_ASSET_NAME" >> "$GITHUB_ENV"
+
+      - name: Download canonical Runner assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          mkdir runner-dist
+          gh release download "$RELEASE_TAG" --dir runner-dist \
+            --pattern "$RUNNER_ASSET_NAME" \
+            --pattern "$RUNNER_ASSET_NAME.sha256" \
+            --pattern runner-source-commit.txt \
+            --pattern runner-reproducibility.txt
+
+      - name: Verify checksum, source commit, and committed configuration
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python scripts/verify_runner_release.py \
+            --jar "runner-dist/$RUNNER_ASSET_NAME" \
+            --checksum "runner-dist/$RUNNER_ASSET_NAME.sha256" \
+            --source-commit runner-dist/runner-source-commit.txt \
+            --reproducibility runner-dist/runner-reproducibility.txt \
+            --release-tag "$RELEASE_TAG"
+
+      - name: Verify Java tree stayed frozen
+        run: |
+          RUNNER_SOURCE_COMMIT=$(tr -d '\r\n' < runner-dist/runner-source-commit.txt)
+          git cat-file -e "$RUNNER_SOURCE_COMMIT^{commit}"
+          git merge-base --is-ancestor "$RUNNER_SOURCE_COMMIT" "$GITHUB_SHA"
+          git diff --exit-code "$RUNNER_SOURCE_COMMIT" "$GITHUB_SHA" -- java-runner .mvn mvnw mvnw.cmd
+
+      - name: Upload verified canonical Runner
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.RUNNER_ARTIFACT_NAME }}
+          path: |
+            runner-dist/*.jar
+            runner-dist/*.jar.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    needs: [java-build, canonical-runner]
+    if: >-
+      always() &&
+      !cancelled() &&
+      (needs.java-build.result == 'success' || needs.canonical-runner.result == 'success')
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: '3.8'
+          - os: ubuntu-latest
+            python-version: '3.9'
+          - os: ubuntu-latest
+            python-version: '3.10'
+          - os: ubuntu-latest
+            python-version: '3.11'
+          - os: ubuntu-latest
+            python-version: '3.12'
+          - os: ubuntu-latest
+            python-version: '3.13'
+          - os: ubuntu-latest
+            python-version: '3.14'
+          - os: windows-latest
+            python-version: '3.14'
+          - os: macos-latest
+            python-version: '3.14'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download tested Runner
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.RUNNER_ARTIFACT_NAME }}
+          path: runner-dist/
+
+      - name: Verify and select tested Runner
+        run: python scripts/export_test_runner.py runner-dist
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run tests against the downloaded Runner
+        run: python -m pytest tests/ -v
+
+      - name: Decode with the downloaded Runner
+        run: python -c "import os; from pyzxing import BarCodeReader; results=BarCodeReader(jar_path=os.environ['PYZXING_TEST_JAR']).decode('src/resources/qrcode.png'); assert any(result.get('text') or result.get('raw') for result in results), results"
+
+  coverage:
+    name: Coverage
+    needs: [java-build, canonical-runner]
+    if: >-
+      always() &&
+      !cancelled() &&
+      (needs.java-build.result == 'success' || needs.canonical-runner.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write # Required for Codecov OIDC authentication.
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.14'
+
+      - name: Download tested Runner
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.RUNNER_ARTIFACT_NAME }}
+          path: runner-dist/
+
+      - name: Verify and select tested Runner
+        run: python scripts/export_test_runner.py runner-dist
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Generate coverage report
+        run: python -m pytest tests/ -q --cov=pyzxing --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          use_oidc: true
+          files: ./coverage.xml
+          flags: unittests
+          name: python-3.14-ubuntu
+          fail_ci_if_error: true
+
+  pyinstaller-smoke:
+    name: PyInstaller frozen decode
+    needs: [java-build, canonical-runner]
+    if: >-
+      always() &&
+      !cancelled() &&
+      (needs.java-build.result == 'success' || needs.canonical-runner.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.14'
+
+      - name: Download tested Runner
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.RUNNER_ARTIFACT_NAME }}
+          path: runner-dist/
+
+      - name: Verify and select tested Runner
+        run: python scripts/export_test_runner.py runner-dist
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Freeze smoke harness with explicit bundled JAR
+        run: |
+          python -m pip install -e . pyinstaller==6.21.0
+          pyinstaller --clean --noconfirm --onefile \
+            --name pyzxing-frozen-smoke \
+            --add-data "$PYZXING_TEST_JAR:runner" \
+            --add-data "src/resources/qrcode.png:fixtures" \
+            scripts/pyinstaller_smoke.py
+
+      - name: Decode from the frozen executable
+        run: dist/pyzxing-frozen-smoke
 
   build:
-    needs: test
+    name: Build and verify release set
+    needs: [lint, test, coverage, pyinstaller-smoke]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
-    
+    timeout-minutes: 25
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Miniconda
-      uses: conda-incubator/setup-miniconda@v2
-      with:
-        miniconda-version: "latest"
-        auto-update-conda: true
-        python-version: '3.12' # Keep the python version for consistency
-    
-    - name: Install build dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine setuptools wheel
-    
-    - name: Build package
-      run: |
-        python -m build
-    
-    - name: Upload release assets
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: dist/*
-    
-    - name: Test built package
-      run: |
-        pip install dist/*.whl
-        python -c "
-        import pyzxing
-        from pyzxing import BarCodeReader
-        reader = BarCodeReader()
-        print('✅ Package installation test passed!')
-        "
-    
-    - name: Upload release assets
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: dist/*
-    
-    - name: Publish to PyPI
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: |
-        twine upload dist/*
-    
-    - name: Build and publish to Conda
-      env:
-        ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
-      run: |
-        conda install conda-build anaconda-client
-        conda build conda-recipe --output-folder ./
-        conda run -n base anaconda upload --force --label main noarch/*.conda
-        conda run -n base anaconda upload --force --label chenjiexu noarch/*.conda
-        conda run -n base anaconda upload --force --label conda-forge noarch/*.conda
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.14'
+
+      - name: Download tested Runner
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.RUNNER_ARTIFACT_NAME }}
+          path: runner-dist/
+
+      - name: Verify and select tested Runner
+        run: python scripts/export_test_runner.py runner-dist
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build twine
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Verify release tag matches package version
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          PACKAGE_VERSION=$(python -c "import runpy; print(runpy.run_path('pyzxing/__version__.py')['__version__'])")
+          test "$RELEASE_TAG" = "v$PACKAGE_VERSION"
+
+      - name: Check distribution metadata
+        run: python -m twine check dist/*
+
+      - name: Test wheel installation and real decode
+        env:
+          DECODE_FIXTURE: ${{ github.workspace }}/src/resources/qrcode.png
+        run: |
+          python -m venv .venv-wheel
+          .venv-wheel/bin/python -m pip install dist/*.whl
+          .venv-wheel/bin/python -I -c "import os; from pyzxing import BarCodeReader; results=BarCodeReader(jar_path=os.environ['PYZXING_TEST_JAR']).decode(os.environ['DECODE_FIXTURE']); assert results, results"
+
+      - name: Test source distribution installation and real decode
+        env:
+          DECODE_FIXTURE: ${{ github.workspace }}/src/resources/qrcode.png
+        run: |
+          python -m venv .venv-sdist
+          .venv-sdist/bin/python -m pip install dist/*.tar.gz
+          .venv-sdist/bin/python -I -c "import os; from pyzxing import BarCodeReader; results=BarCodeReader(jar_path=os.environ['PYZXING_TEST_JAR']).decode(os.environ['DECODE_FIXTURE']); assert results, results"
+
+      - name: Upload Python distributions
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-distributions
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Preserve independently rebuilt release verification distributions
+        if: github.event_name == 'release'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: source-built-python-distributions
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  conda-package-smoke:
+    name: Build conda package and decode through CONDA_PREFIX
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Set up pinned Miniforge
+        uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
+        with:
+          miniforge-version: 26.3.2-3
+          activate-environment: conda-build
+          python-version: '3.14'
+          channels: conda-forge
+          channel-priority: strict
+          auto-activate-base: false
+
+      - name: Install pinned conda-build
+        run: conda install --yes conda-build=26.5.0
+
+      - name: Build recipe and run its default-reader test
+        run: |
+          set -euo pipefail
+          python scripts/verify_version_sync.py
+          PACKAGE_PATH=$(conda build conda-recipe --output --output-folder conda-output)
+          conda build conda-recipe --output-folder conda-output
+          test -f "$PACKAGE_PATH"
+          echo "PACKAGE_PATH=$PACKAGE_PATH" >> "$GITHUB_ENV"
+
+      - name: Smoke-test the installed package without jar_path
+        run: |
+          set -euo pipefail
+          conda create --yes --name pyzxing-conda-smoke "$PACKAGE_PATH"
+          conda run --name pyzxing-conda-smoke python -c "from pathlib import Path; import os; from pyzxing import BarCodeReader; root = Path(os.environ['CONDA_PREFIX']) / 'share' / 'pyzxing'; results = BarCodeReader().decode(root / 'test-data' / 'qrcode.png'); assert any(result.get('text') or result.get('raw') for result in results), results"
+
+  canonical-python-distributions:
+    name: Verify immutable release distributions
+    if: github.event_name == 'release'
+    needs: [canonical-runner, conda-package-smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.14'
+
+      - name: Download canonical Runner
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.RUNNER_ARTIFACT_NAME }}
+          path: runner-dist/
+
+      - name: Verify and select canonical Runner
+        run: python scripts/export_test_runner.py runner-dist
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download exact immutable release distributions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" \
+            --json assets,isDraft,isImmutable,isPrerelease,tagName > immutable-release-state.json
+          jq -e --arg tag "$RELEASE_TAG" '
+            .tagName == $tag and
+            .isDraft == false and
+            .isImmutable == true and
+            .isPrerelease == false and
+            (.assets | length) == 6
+          ' immutable-release-state.json
+          mapfile -t WHEEL_NAMES < <(jq -r '.assets[].name | select(endswith(".whl"))' \
+            immutable-release-state.json)
+          mapfile -t SDIST_NAMES < <(jq -r '.assets[].name | select(endswith(".tar.gz"))' \
+            immutable-release-state.json)
+          test "${#WHEEL_NAMES[@]}" = "1"
+          test "${#SDIST_NAMES[@]}" = "1"
+          PACKAGE_VERSION=$(python -c "import runpy; print(runpy.run_path('pyzxing/__version__.py')['__version__'])")
+          test "${WHEEL_NAMES[0]}" = "pyzxing-$PACKAGE_VERSION-py3-none-any.whl"
+          test "${SDIST_NAMES[0]}" = "pyzxing-$PACKAGE_VERSION.tar.gz"
+          mkdir dist
+          for DIST_NAME in "${WHEEL_NAMES[@]}" "${SDIST_NAMES[@]}"; do
+            test "$(jq --arg name "$DIST_NAME" \
+              '[.assets[] | select(.name == $name)] | length' \
+              immutable-release-state.json)" = "1"
+            EXPECTED_DIGEST=$(jq -r --arg name "$DIST_NAME" \
+              '.assets[] | select(.name == $name) | .digest // ""' \
+              immutable-release-state.json)
+            test "$EXPECTED_DIGEST" != ""
+            gh release download "$RELEASE_TAG" --dir dist --pattern "$DIST_NAME"
+            test "sha256:$(sha256sum "dist/$DIST_NAME" | cut -d' ' -f1)" = "$EXPECTED_DIGEST"
+          done
+
+      - name: Verify immutable distributions and real installs
+        env:
+          DECODE_FIXTURE: ${{ github.workspace }}/src/resources/qrcode.png
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install twine
+          python -m twine check dist/*
+          python -m venv .venv-release-wheel
+          .venv-release-wheel/bin/python -m pip install dist/*.whl
+          .venv-release-wheel/bin/python -I -c "import os; from pyzxing import BarCodeReader; results=BarCodeReader(jar_path=os.environ['PYZXING_TEST_JAR']).decode(os.environ['DECODE_FIXTURE']); assert results, results"
+          python -m venv .venv-release-sdist
+          .venv-release-sdist/bin/python -m pip install dist/*.tar.gz
+          .venv-release-sdist/bin/python -I -c "import os; from pyzxing import BarCodeReader; results=BarCodeReader(jar_path=os.environ['PYZXING_TEST_JAR']).decode(os.environ['DECODE_FIXTURE']); assert results, results"
+
+      - name: Preserve immutable release bytes for PyPI
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-distributions
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-pypi:
+    name: Publish to PyPI
+    if: github.event_name == 'release'
+    needs: canonical-python-distributions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pyzxing
+    permissions:
+      contents: read
+      id-token: write # Required for PyPI Trusted Publishing.
+
+    steps:
+      - name: Download Python distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-distributions
+          path: dist/
+
+      - name: Publish distributions
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        with:
+          skip-existing: true
