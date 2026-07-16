@@ -28,10 +28,10 @@
     "payload_hex": "c9fab2fad0edbfc9d6a4bac5a3bab2e2cad42d313233"
   },
   "decoder": {
-    "runner_version": "1.2.0",
+    "runner_version": "1.2.1",
     "zxing_version": "3.5.4",
-    "artifact": "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
-    "artifact_sha256": "d542daf2b3af3405ed5f949542acb287e176a3cdfd119edb504079c3033cd9cb",
+    "artifact": "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
+    "artifact_sha256": "4eafc795f2474b50bf7b01d416e8890578926fcc6f9a64e83543471b95ea3565",
     "java": "openjdk 17.0.19"
   },
   "cases": {
