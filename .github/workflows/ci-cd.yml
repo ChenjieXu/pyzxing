@@ -479,7 +479,8 @@ jobs:
       - name: Smoke-test the installed package without jar_path
         run: |
           set -euo pipefail
-          conda create --yes --name pyzxing-conda-smoke "$PACKAGE_PATH"
+          conda create --yes --name pyzxing-conda-smoke \
+            python=3.13 numpy joblib openjdk=17 "$PACKAGE_PATH"
           conda run --name pyzxing-conda-smoke python -c "from pathlib import Path; import os; from pyzxing import BarCodeReader; root = Path(os.environ['CONDA_PREFIX']) / 'share' / 'pyzxing'; results = BarCodeReader().decode(root / 'test-data' / 'qrcode.png'); assert any(result.get('text') or result.get('raw') for result in results), results"
 
   canonical-python-distributions:
