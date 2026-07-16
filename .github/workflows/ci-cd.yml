@@ -354,6 +354,13 @@ jobs:
   build:
     name: Build and verify release set
     needs: [lint, test, coverage, pyinstaller-smoke]
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.lint.result == 'success' &&
+      needs.test.result == 'success' &&
+      needs.coverage.result == 'success' &&
+      needs.pyinstaller-smoke.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -439,8 +446,12 @@ jobs:
 
   conda-package-smoke:
     name: Build conda package and decode through CONDA_PREFIX
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     needs: build
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.build.result == 'success' &&
+      (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -499,8 +510,13 @@ jobs:
 
   canonical-python-distributions:
     name: Verify immutable release distributions
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     needs: [canonical-runner, conda-package-smoke]
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.canonical-runner.result == 'success' &&
+      needs.conda-package-smoke.result == 'success' &&
+      (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -594,8 +610,12 @@ jobs:
 
   publish-pypi:
     name: Publish to PyPI
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     needs: canonical-python-distributions
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.canonical-python-distributions.result == 'success' &&
+      (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
