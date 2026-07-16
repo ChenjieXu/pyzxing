@@ -458,6 +458,19 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/verify_version_sync.py
+          python - conda-recipe/meta.yaml <<'PY'
+          import sys
+          from pathlib import Path
+
+          recipe = Path(sys.argv[1])
+          text = recipe.read_text(encoding="utf-8")
+          old = "{{ PYTHON }} -m pip install source --no-deps --no-build-isolation -vv"
+          new = "{{ PYTHON }} -m pip install ./source --no-deps --no-build-isolation -vv"
+          if text.count(old) == 1:
+              recipe.write_text(text.replace(old, new, 1), encoding="utf-8")
+          elif text.count(new) != 1:
+              raise SystemExit("tagged conda recipe has an unknown source install command")
+          PY
           PACKAGE_PATH=$(conda-build conda-recipe --output --output-folder conda-output)
           conda-build conda-recipe --output-folder conda-output
           test -f "$PACKAGE_PATH"
