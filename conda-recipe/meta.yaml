@@ -3,8 +3,8 @@
 {% set runner_version = "1.2.0" %}
 {% set zxing_version = "3.5.4" %}
 {% set runner_filename = "pyzxing-runner-1.2.0-zxing-3.5.4.jar" %}
-{% set runner_sha256 = "0000000000000000000000000000000000000000000000000000000000000000" %}
-{% set runner_source_commit = "" %}
+{% set runner_sha256 = "d542daf2b3af3405ed5f949542acb287e176a3cdfd119edb504079c3033cd9cb" %}
+{% set runner_source_commit = "a95adc59b671de82f339983f8324306078d55c18" %}
 
 package:
   name: {{ name|lower }}

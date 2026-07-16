@@ -145,12 +145,15 @@ cmp "$FIRST_JAR" "$SECOND_JAR"
 cmp "$FIRST_JAR.sha256" "$SECOND_JAR.sha256"
 ```
 
-Create the four canonical files without executing the candidate, then create
-the staging tag and draft exactly once. An existing release or tag is a hard
-stop; never replace bootstrap assets:
+Create the four canonical files without executing the candidate. Create and
+verify the lightweight staging tag before creating the draft. A prior exact tag
+with no release is the recoverable state left by an interrupted creation; a tag
+pointing elsewhere, a release without its exact tag, or any existing release is
+a hard stop. Never replace, delete, or force-update a tag or bootstrap asset:
 
 ```bash
 set -euo pipefail
+REPOSITORY="ChenjieXu/pyzxing"
 RELEASE_TAG="v1.2.0"
 PREPARED_RELEASE_TAG="runner-assets-$RELEASE_TAG-$RUNNER_SOURCE_COMMIT"
 mkdir .release-bootstrap/canonical
@@ -161,38 +164,79 @@ printf 'reproducible=true\nsource_commit=%s\n' "$RUNNER_SOURCE_COMMIT" \
   > .release-bootstrap/canonical/runner-reproducibility.txt
 test "$(find .release-bootstrap/canonical -maxdepth 1 -type f | wc -l)" -eq 4
 
-if gh release view "$PREPARED_RELEASE_TAG" > /dev/null 2> release-view-error.txt; then
-  echo "staging release already exists: $PREPARED_RELEASE_TAG" >&2
-  exit 1
-elif ! grep -Fxq 'release not found' release-view-error.txt && \
+RELEASE_EXISTS=false
+if gh release view "$PREPARED_RELEASE_TAG" \
+  --json isDraft,isPrerelease,tagName > release-state.json \
+  2> release-view-error.txt; then
+  jq -e --arg tag "$PREPARED_RELEASE_TAG" '
+    .tagName == $tag and .isDraft == true and .isPrerelease == false
+  ' release-state.json
+  RELEASE_EXISTS=true
+elif ! grep -Fxq 'release not found' release-view-error.txt &&
   ! grep -Fq 'HTTP 404' release-view-error.txt; then
   cat release-view-error.txt >&2
   exit 1
 fi
 
-set +e
-git ls-remote --exit-code --tags origin "refs/tags/$PREPARED_RELEASE_TAG" \
-  > existing-staging-tag.txt
-TAG_LOOKUP_STATUS=$?
-set -e
-if [[ "$TAG_LOOKUP_STATUS" == 0 ]]; then
-  echo "staging tag already exists: $PREPARED_RELEASE_TAG" >&2
+TAG_EXISTS=false
+if gh api "repos/$REPOSITORY/git/ref/tags/$PREPARED_RELEASE_TAG" \
+  > staging-tag-ref.json 2> staging-tag-ref-error.txt; then
+  jq -e --arg source_commit "$RUNNER_SOURCE_COMMIT" '
+    .object.type == "commit" and .object.sha == $source_commit
+  ' staging-tag-ref.json
+  TAG_EXISTS=true
+elif ! grep -Fq 'HTTP 404' staging-tag-ref-error.txt; then
+  cat staging-tag-ref-error.txt >&2
   exit 1
-elif [[ "$TAG_LOOKUP_STATUS" != 2 ]]; then
-  echo "could not prove staging tag absence" >&2
-  exit "$TAG_LOOKUP_STATUS"
+fi
+
+if [[ "$RELEASE_EXISTS" == "true" ]]; then
+  test "$TAG_EXISTS" = "true"
+  echo "staging release already exists: $PREPARED_RELEASE_TAG" >&2
+  exit 1
+fi
+
+if [[ "$TAG_EXISTS" != "true" ]]; then
+  gh api --method POST "repos/$REPOSITORY/git/refs" \
+    -f ref="refs/tags/$PREPARED_RELEASE_TAG" \
+    -f sha="$RUNNER_SOURCE_COMMIT" > created-staging-tag-ref.json
+  jq -e --arg tag "refs/tags/$PREPARED_RELEASE_TAG" \
+    --arg source_commit "$RUNNER_SOURCE_COMMIT" '
+    .ref == $tag and
+    .object.type == "commit" and
+    .object.sha == $source_commit
+  ' created-staging-tag-ref.json
+
+  TAG_VISIBLE=false
+  for ATTEMPT in 1 2 3 4 5; do
+    if gh api "repos/$REPOSITORY/git/ref/tags/$PREPARED_RELEASE_TAG" \
+      > staging-tag-ref.json 2> staging-tag-ref-error.txt; then
+      TAG_VISIBLE=true
+      break
+    fi
+    if ! grep -Fq 'HTTP 404' staging-tag-ref-error.txt; then
+      cat staging-tag-ref-error.txt >&2
+      exit 1
+    fi
+    if [[ "$ATTEMPT" -lt 5 ]]; then
+      sleep 2
+    fi
+  done
+  test "$TAG_VISIBLE" = "true"
+  jq -e --arg source_commit "$RUNNER_SOURCE_COMMIT" '
+    .object.type == "commit" and .object.sha == $source_commit
+  ' staging-tag-ref.json
 fi
 
 gh release create "$PREPARED_RELEASE_TAG" \
   .release-bootstrap/canonical/* \
   --draft \
+  --verify-tag \
   --target "$RUNNER_SOURCE_COMMIT" \
   --title "$RELEASE_TAG canonical Runner assets" \
   --notes "Staging-only canonical Runner assets prepared from $RUNNER_SOURCE_COMMIT."
-git fetch origin "refs/tags/$PREPARED_RELEASE_TAG:refs/tags/$PREPARED_RELEASE_TAG"
-test "$(git rev-parse "$PREPARED_RELEASE_TAG^{commit}")" = "$RUNNER_SOURCE_COMMIT"
 test "$(gh release view "$PREPARED_RELEASE_TAG" --json assets,isDraft \
-  --jq 'select(.isDraft == true) | .assets | length')" = 4
+  --jq 'select(.isDraft == true) | .assets | length')" -eq 4
 mkdir .release-bootstrap/verified
 for ASSET_PATH in .release-bootstrap/canonical/*; do
   ASSET_NAME=$(basename "$ASSET_PATH")
