@@ -1,15 +1,20 @@
+import hashlib
 import os
 import sys
+import tempfile
 import time
+from contextlib import contextmanager
 import numpy as np
-from urllib.request import urlretrieve
+from urllib.request import urlopen
 from urllib.error import HTTPError
 from urllib.error import URLError
 
 
 def get_file(fname,
              origin,
-             cache_dir=None):
+             cache_dir=None,
+             expected_sha256=None,
+             timeout=30):
     """A function to download file from url.
     Heritage from keras.utils
     """
@@ -21,36 +26,88 @@ def get_file(fname,
     os.makedirs(cache_dir, exist_ok=True)
     fpath = os.path.join(cache_dir, fname)
 
-    print('Downloading data from', origin)
-
-    class ProgressTracker(object):
-        # Maintain progbar for the lifetime of download.
-        # This design was chosen for Python 2.7 compatibility.
-        progbar = None
-
-    def dl_progress(count, block_size, total_size):
-        if ProgressTracker.progbar is None:
-            if total_size == -1:
-                total_size = None
-            ProgressTracker.progbar = Progbar(total_size)
-        else:
-            ProgressTracker.progbar.update(count * block_size)
-
-    error_msg = 'URL fetch failure on {}: {} -- {}'
-    try:
-        try:
-            urlretrieve(origin, fpath, dl_progress)
-        except HTTPError as e:
-            raise Exception(error_msg.format(origin, e.code, e.msg))
-        except URLError as e:
-            raise Exception(error_msg.format(origin, e.errno, e.reason))
-    except (Exception, KeyboardInterrupt) as e:
+    with _file_lock(fpath + '.lock', timeout=max(timeout * 4, 120)):
         if os.path.exists(fpath):
+            if expected_sha256 is None or sha256(fpath) == expected_sha256:
+                return fpath
             os.remove(fpath)
-        raise
-    ProgressTracker.progbar = None
+
+        print('Downloading data from', origin)
+
+        error_msg = 'URL fetch failure on {}: {} -- {}'
+        temp_path = None
+        try:
+            try:
+                with urlopen(origin, timeout=timeout) as response:
+                    expected_size = response.headers.get('Content-Length')
+                    progress = Progbar(int(expected_size)) if expected_size else None
+                    digest = hashlib.sha256()
+                    with tempfile.NamedTemporaryFile(dir=cache_dir, delete=False) as output:
+                        temp_path = output.name
+                        downloaded = 0
+                        while True:
+                            chunk = response.read(1024 * 1024)
+                            if not chunk:
+                                break
+                            output.write(chunk)
+                            digest.update(chunk)
+                            downloaded += len(chunk)
+                            if progress:
+                                progress.update(downloaded)
+                if expected_sha256 and digest.hexdigest() != expected_sha256:
+                    raise ValueError(
+                        f'SHA-256 mismatch for {origin}: expected '
+                        f'{expected_sha256}, got {digest.hexdigest()}'
+                    )
+                os.replace(temp_path, fpath)
+                temp_path = None
+            except HTTPError as e:
+                raise Exception(error_msg.format(origin, e.code, e.msg))
+            except URLError as e:
+                raise Exception(error_msg.format(origin, e.errno, e.reason))
+        except (Exception, KeyboardInterrupt):
+            if temp_path and os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise
 
     return fpath
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+@contextmanager
+def _file_lock(lock_path, timeout):
+    """Coordinate cache writes across threads and processes."""
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            descriptor = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(descriptor)
+            break
+        except FileExistsError:
+            try:
+                stale = time.time() - os.path.getmtime(lock_path) > timeout
+                if stale:
+                    os.remove(lock_path)
+                    continue
+            except FileNotFoundError:
+                continue
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f'Timed out waiting for cache lock: {lock_path}')
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        try:
+            os.remove(lock_path)
+        except FileNotFoundError:
+            pass
 
 
 class Progbar(object):

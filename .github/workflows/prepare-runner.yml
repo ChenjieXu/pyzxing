@@ -1,0 +1,425 @@
+name: Prepare canonical Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Full release-candidate commit SHA containing the frozen Java tree
+        required: true
+        type: string
+      release_tag:
+        description: Draft GitHub release tag to prepare
+        required: true
+        default: v1.2.0
+        type: string
+  pull_request:
+    branches:
+      - master
+    types: [labeled, synchronize, opened, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-runner-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-release:
+    name: Resolve trusted release identity
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.base.ref == 'master' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       contains(github.event.pull_request.labels.*.name, 'release-candidate'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      source_commit: ${{ steps.request.outputs.source_commit }}
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
+
+    steps:
+      - name: Resolve requested source commit
+        id: request
+        env:
+          DISPATCH_SOURCE_COMMIT: ${{ inputs.source_commit }}
+          PR_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            SOURCE_COMMIT="$PR_SOURCE_COMMIT"
+          else
+            SOURCE_COMMIT="$DISPATCH_SOURCE_COMMIT"
+          fi
+          if ! [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "source_commit must be a lowercase full commit SHA" >&2
+            exit 2
+          fi
+          printf 'source_commit=%s\n' "$SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - name: Check out frozen Runner source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ steps.request.outputs.source_commit }}
+          persist-credentials: false
+
+      - name: Derive and validate release tag
+        id: metadata
+        env:
+          DISPATCH_RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_COMMIT: ${{ steps.request.outputs.source_commit }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          PACKAGE_VERSION=$(python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          path = Path("pyzxing/__version__.py")
+          module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+          values = []
+          for statement in module.body:
+              if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
+                  continue
+              target = statement.targets[0]
+              if isinstance(target, ast.Name) and target.id == "__version__":
+                  value = ast.literal_eval(statement.value)
+                  if isinstance(value, str):
+                      values.append(value)
+          if len(values) != 1:
+              raise SystemExit("pyzxing/__version__.py must define one literal __version__")
+          print(values[0])
+          PY
+          )
+          if ! [[ "$PACKAGE_VERSION" =~ ^[0-9]+([.][0-9]+){2}([A-Za-z0-9.-]*)$ ]]; then
+            echo "package version cannot form a safe release tag" >&2
+            exit 2
+          fi
+          DERIVED_RELEASE_TAG="v$PACKAGE_VERSION"
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            RELEASE_TAG="$DERIVED_RELEASE_TAG"
+          else
+            RELEASE_TAG="$DISPATCH_RELEASE_TAG"
+            test "$RELEASE_TAG" = "$DERIVED_RELEASE_TAG"
+          fi
+          printf 'release_tag=%s\n' "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+  build-twice:
+    name: Clean Runner build ${{ matrix.rebuild }}
+    needs: resolve-release
+    if: >-
+      needs.resolve-release.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' &&
+        github.event.pull_request.base.ref == 'master' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        contains(github.event.pull_request.labels.*.name, 'release-candidate')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
+      SOURCE_COMMIT: ${{ needs.resolve-release.outputs.source_commit }}
+    strategy:
+      fail-fast: false
+      matrix:
+        rebuild: [1, 2]
+
+    steps:
+      - name: Validate requested commit
+        run: |
+          if ! [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "source_commit must be a lowercase full commit SHA" >&2
+            exit 2
+          fi
+
+      - name: Check out frozen Runner source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          persist-credentials: false
+
+      - name: Verify checked-out commit
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.14'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify synchronized release metadata
+        run: python scripts/verify_version_sync.py --allow-placeholders
+
+      - name: Verify release tag matches package version
+        run: |
+          PACKAGE_VERSION=$(python -c "import runpy; print(runpy.run_path('pyzxing/__version__.py')['__version__'])")
+          test "$RELEASE_TAG" = "v$PACKAGE_VERSION"
+
+      - name: Build and test from a clean tree
+        run: |
+          chmod +x mvnw
+          ./mvnw -f java-runner/pom.xml clean verify
+
+      - name: Package candidate artifact
+        run: |
+          RUNNER_FINAL_NAME=$(./mvnw -f java-runner/pom.xml help:evaluate -Dexpression=project.build.finalName -q -DforceStdout)
+          RUNNER_JAR="$GITHUB_WORKSPACE/java-runner/target/${RUNNER_FINAL_NAME}.jar"
+          test -f "$RUNNER_JAR"
+          mkdir runner-dist
+          cp "$RUNNER_JAR" "runner-dist/${RUNNER_FINAL_NAME}.jar"
+          python scripts/verify_runner_artifact.py "runner-dist/${RUNNER_FINAL_NAME}.jar" --write "runner-dist/${RUNNER_FINAL_NAME}.jar.sha256"
+
+      - name: Upload clean-build candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: runner-rebuild-${{ matrix.rebuild }}
+          path: runner-dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  promote:
+    name: Promote canonical Runner to draft release (dispatch only)
+    needs: [resolve-release, build-twice]
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      needs.resolve-release.result == 'success' &&
+      needs.build-twice.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: prepare-runner-promote-${{ needs.resolve-release.outputs.release_tag }}
+      cancel-in-progress: false
+    permissions:
+      contents: write # Required to create the draft Release and upload canonical assets.
+    env:
+      RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
+      SOURCE_COMMIT: ${{ needs.resolve-release.outputs.source_commit }}
+
+    steps:
+      - name: Download first clean build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: runner-rebuild-1
+          path: rebuild-1/
+
+      - name: Download second clean build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: runner-rebuild-2
+          path: rebuild-2/
+
+      - name: Require byte-identical clean builds and select canonical bytes
+        run: |
+          set -euo pipefail
+          mapfile -d '' -t FIRST_FILES < <(find rebuild-1 -maxdepth 1 -type f -print0)
+          mapfile -d '' -t SECOND_FILES < <(find rebuild-2 -maxdepth 1 -type f -print0)
+          test "${#FIRST_FILES[@]}" -eq 2
+          test "${#SECOND_FILES[@]}" -eq 2
+
+          mapfile -d '' -t FIRST_JARS < <(find rebuild-1 -maxdepth 1 -type f -name '*.jar' -print0)
+          mapfile -d '' -t SECOND_JARS < <(find rebuild-2 -maxdepth 1 -type f -name '*.jar' -print0)
+          mapfile -d '' -t FIRST_CHECKSUMS < <(find rebuild-1 -maxdepth 1 -type f -name '*.jar.sha256' -print0)
+          mapfile -d '' -t SECOND_CHECKSUMS < <(find rebuild-2 -maxdepth 1 -type f -name '*.jar.sha256' -print0)
+          test "${#FIRST_JARS[@]}" -eq 1
+          test "${#SECOND_JARS[@]}" -eq 1
+          test "${#FIRST_CHECKSUMS[@]}" -eq 1
+          test "${#SECOND_CHECKSUMS[@]}" -eq 1
+
+          FIRST_JAR=${FIRST_JARS[0]}
+          SECOND_JAR=${SECOND_JARS[0]}
+          FIRST_CHECKSUM=${FIRST_CHECKSUMS[0]}
+          SECOND_CHECKSUM=${SECOND_CHECKSUMS[0]}
+          FIRST_JAR_NAME=$(basename "$FIRST_JAR")
+          SECOND_JAR_NAME=$(basename "$SECOND_JAR")
+          [[ "$FIRST_JAR_NAME" =~ ^pyzxing-runner-[0-9]+\.[0-9]+\.[0-9]+-zxing-[0-9]+\.[0-9]+\.[0-9]+\.jar$ ]]
+          test "$FIRST_CHECKSUM" = "$FIRST_JAR.sha256"
+          test "$SECOND_CHECKSUM" = "$SECOND_JAR.sha256"
+          test "$FIRST_JAR_NAME" = "$SECOND_JAR_NAME"
+
+          verify_checksum() {
+            local jar_path=$1
+            local checksum_path=$2
+            local declared_sha256
+            test "$(wc -l < "$checksum_path")" -eq 1
+            declared_sha256=$(cut -d' ' -f1 "$checksum_path")
+            [[ "$declared_sha256" =~ ^[0-9a-f]{64}$ ]]
+            test "$(cat "$checksum_path")" = "$declared_sha256  $(basename "$jar_path")"
+            test "$(sha256sum "$jar_path" | cut -d' ' -f1)" = "$declared_sha256"
+          }
+          verify_checksum "$FIRST_JAR" "$FIRST_CHECKSUM"
+          verify_checksum "$SECOND_JAR" "$SECOND_CHECKSUM"
+          cmp "$FIRST_JAR" "$SECOND_JAR"
+          cmp "$FIRST_CHECKSUM" "$SECOND_CHECKSUM"
+
+          mkdir canonical
+          cp "$FIRST_JAR" "canonical/$FIRST_JAR_NAME"
+          cp "$FIRST_CHECKSUM" "canonical/$FIRST_JAR_NAME.sha256"
+          printf '%s\n' "$SOURCE_COMMIT" > canonical/runner-source-commit.txt
+
+          printf 'reproducible=true\nsource_commit=%s\n' "$SOURCE_COMMIT" > canonical/runner-reproducibility.txt
+
+      - name: Create or validate staging draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          PREPARED_RELEASE_TAG="runner-assets-$RELEASE_TAG-$SOURCE_COMMIT"
+          RELEASE_EXISTS=false
+          if gh release view "$PREPARED_RELEASE_TAG" \
+            --json isDraft,isPrerelease,tagName > release-draft-state.json 2> release-draft-error.txt; then
+            jq -e --arg tag "$PREPARED_RELEASE_TAG" '
+              .tagName == $tag and
+              .isDraft == true and
+              .isPrerelease == false
+            ' release-draft-state.json
+            RELEASE_EXISTS=true
+          else
+            if ! grep -Fxq 'release not found' release-draft-error.txt &&
+              ! grep -Fq 'HTTP 404' release-draft-error.txt; then
+              cat release-draft-error.txt >&2
+              exit 1
+            fi
+          fi
+
+          TAG_EXISTS=false
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$PREPARED_RELEASE_TAG" \
+            > staging-tag-ref.json 2> staging-tag-ref-error.txt; then
+            jq -e --arg source_commit "$SOURCE_COMMIT" '
+              .object.type == "commit" and
+              .object.sha == $source_commit
+            ' staging-tag-ref.json
+            TAG_EXISTS=true
+          else
+            if ! grep -Fq 'HTTP 404' staging-tag-ref-error.txt; then
+              cat staging-tag-ref-error.txt >&2
+              exit 1
+            fi
+          fi
+
+          if [[ "$RELEASE_EXISTS" == "true" && "$TAG_EXISTS" != "true" ]]; then
+            echo "staging draft exists without its required tag" >&2
+            exit 1
+          fi
+
+          if [[ "$RELEASE_EXISTS" != "true" ]]; then
+            if [[ "$TAG_EXISTS" != "true" ]]; then
+              gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+                -f ref="refs/tags/$PREPARED_RELEASE_TAG" \
+                -f sha="$SOURCE_COMMIT" > created-staging-tag-ref.json
+              jq -e --arg tag "refs/tags/$PREPARED_RELEASE_TAG" \
+                --arg source_commit "$SOURCE_COMMIT" '
+                .ref == $tag and
+                .object.type == "commit" and
+                .object.sha == $source_commit
+              ' created-staging-tag-ref.json
+
+              TAG_VISIBLE=false
+              for ATTEMPT in 1 2 3 4 5; do
+                if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$PREPARED_RELEASE_TAG" \
+                  > staging-tag-ref.json 2> staging-tag-ref-error.txt; then
+                  TAG_VISIBLE=true
+                  break
+                fi
+                if ! grep -Fq 'HTTP 404' staging-tag-ref-error.txt; then
+                  cat staging-tag-ref-error.txt >&2
+                  exit 1
+                fi
+                if [[ "$ATTEMPT" -lt 5 ]]; then
+                  sleep 2
+                fi
+              done
+              test "$TAG_VISIBLE" = "true"
+              jq -e --arg source_commit "$SOURCE_COMMIT" '
+                .object.type == "commit" and
+                .object.sha == $source_commit
+              ' staging-tag-ref.json
+            fi
+
+            gh release create "$PREPARED_RELEASE_TAG" \
+              --draft \
+              --verify-tag \
+              --target "$SOURCE_COMMIT" \
+              --title "$RELEASE_TAG canonical Runner assets" \
+              --notes "Staging-only canonical Runner assets prepared from $SOURCE_COMMIT. The final $RELEASE_TAG tag is created later at the verified default-branch merge commit."
+            gh release view "$PREPARED_RELEASE_TAG" \
+              --json isDraft,isPrerelease,tagName > release-draft-state.json
+            jq -e --arg tag "$PREPARED_RELEASE_TAG" '
+              .tagName == $tag and
+              .isDraft == true and
+              .isPrerelease == false
+            ' release-draft-state.json
+          fi
+          echo "PREPARED_RELEASE_TAG=$PREPARED_RELEASE_TAG" >> "$GITHUB_ENV"
+
+      - name: Recover canonical staging assets without replacement
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mapfile -t CANONICAL_FILES < <(find canonical -maxdepth 1 -type f -print | sort)
+          test "${#CANONICAL_FILES[@]}" = "4"
+          test "$(find canonical -maxdepth 1 -type f -name '*.jar' | wc -l)" = "1"
+          test "$(find canonical -maxdepth 1 -type f -name '*.jar.sha256' | wc -l)" = "1"
+
+          gh release view "$PREPARED_RELEASE_TAG" \
+            --json assets,isDraft,isPrerelease,tagName > staging-assets-before.json
+          jq -e --arg tag "$PREPARED_RELEASE_TAG" '
+            .tagName == $tag and
+            .isDraft == true and
+            .isPrerelease == false
+          ' staging-assets-before.json
+
+          for ASSET_PATH in "${CANONICAL_FILES[@]}"; do
+            ASSET_NAME=$(basename "$ASSET_PATH")
+            EXPECTED_DIGEST="sha256:$(sha256sum "$ASSET_PATH" | cut -d' ' -f1)"
+            ASSET_COUNT=$(jq --arg name "$ASSET_NAME" \
+              '[.assets[] | select(.name == $name)] | length' staging-assets-before.json)
+            if [[ "$ASSET_COUNT" -gt 1 ]]; then
+              echo "duplicate staging asset: $ASSET_NAME" >&2
+              exit 1
+            elif [[ "$ASSET_COUNT" == "1" ]]; then
+              test "$(jq -r --arg name "$ASSET_NAME" \
+                '.assets[] | select(.name == $name) | .digest // ""' \
+                staging-assets-before.json)" = "$EXPECTED_DIGEST"
+              mkdir -p existing-staging
+              gh release download "$PREPARED_RELEASE_TAG" \
+                --dir existing-staging \
+                --pattern "$ASSET_NAME"
+              cmp "$ASSET_PATH" "existing-staging/$ASSET_NAME"
+            else
+              gh release upload "$PREPARED_RELEASE_TAG" "$ASSET_PATH"
+            fi
+          done
+
+          gh release view "$PREPARED_RELEASE_TAG" \
+            --json assets,isDraft,isPrerelease,tagName > staging-assets-after.json
+          jq -e --arg tag "$PREPARED_RELEASE_TAG" '
+            .tagName == $tag and
+            .isDraft == true and
+            .isPrerelease == false and
+            (.assets | length) == 4
+          ' staging-assets-after.json
+          mkdir verified-staging
+          for ASSET_PATH in "${CANONICAL_FILES[@]}"; do
+            ASSET_NAME=$(basename "$ASSET_PATH")
+            EXPECTED_DIGEST="sha256:$(sha256sum "$ASSET_PATH" | cut -d' ' -f1)"
+            test "$(jq --arg name "$ASSET_NAME" \
+              '[.assets[] | select(.name == $name)] | length' \
+              staging-assets-after.json)" = "1"
+            test "$(jq -r --arg name "$ASSET_NAME" \
+              '.assets[] | select(.name == $name) | .digest // ""' \
+              staging-assets-after.json)" = "$EXPECTED_DIGEST"
+            gh release download "$PREPARED_RELEASE_TAG" \
+              --dir verified-staging \
+              --pattern "$ASSET_NAME"
+            cmp "$ASSET_PATH" "verified-staging/$ASSET_NAME"
+          done
+
+      - name: Record preparation result
+        run: |
+          cat canonical/runner-reproducibility.txt >> "$GITHUB_STEP_SUMMARY"
+          printf '\nStaging draft release: %s\n' "$PREPARED_RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"

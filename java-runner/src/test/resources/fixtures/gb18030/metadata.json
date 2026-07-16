@@ -1,0 +1,22 @@
+{
+  "fixture": "gb18030-byte-no-eci.png",
+  "sha256": "ee4aa39fbfabbcbce4e41f9d6d7f3c1cc59af89c4ba09a9e43719fc34d828398",
+  "payload_text": "生产许可证号：测试-123",
+  "payload_encoding": "GB18030",
+  "payload_hex": "c9fab2fad0edbfc9d6a4bac5a3bab2e2cad42d313233",
+  "generator": {
+    "library": "Segno",
+    "library_version": "1.6.6",
+    "runtime": "CPython 3.12.11",
+    "uses_zxing": false
+  },
+  "qr": {
+    "version": 2,
+    "error_correction": "M",
+    "mask": 5,
+    "mode": "byte",
+    "eci": false,
+    "scale": 8,
+    "border": 4
+  }
+}

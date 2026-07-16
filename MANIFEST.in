@@ -1,3 +1,12 @@
 include *.md
-exclude LICENSE*
-global-exclude LICENSE*
+include LICENSE
+include mvnw
+include mvnw.cmd
+recursive-include .mvn *.properties
+recursive-include conda-recipe *.yaml
+recursive-include java-runner *.java *.json *.md *.png *.xml
+recursive-include reports *.json
+recursive-include scripts *.py
+recursive-include src/resources *.jpg *.png *.txt
+recursive-include tests *.json *.png *.py
+prune java-runner/target
