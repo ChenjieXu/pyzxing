@@ -12,19 +12,112 @@ on:
         required: true
         default: v1.2.0
         type: string
+  pull_request:
+    branches:
+      - master
+    types: [labeled, synchronize, opened, reopened]
 
 permissions:
   contents: read
 
 concurrency:
-  group: prepare-runner-${{ inputs.release_tag }}
+  group: prepare-runner-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.release_tag }}
   cancel-in-progress: false
 
 jobs:
+  resolve-release:
+    name: Resolve trusted release identity
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.base.ref == 'master' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       contains(github.event.pull_request.labels.*.name, 'release-candidate'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      source_commit: ${{ steps.request.outputs.source_commit }}
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
+
+    steps:
+      - name: Resolve requested source commit
+        id: request
+        env:
+          DISPATCH_SOURCE_COMMIT: ${{ inputs.source_commit }}
+          PR_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            SOURCE_COMMIT="$PR_SOURCE_COMMIT"
+          else
+            SOURCE_COMMIT="$DISPATCH_SOURCE_COMMIT"
+          fi
+          if ! [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "source_commit must be a lowercase full commit SHA" >&2
+            exit 2
+          fi
+          printf 'source_commit=%s\n' "$SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - name: Check out frozen Runner source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ steps.request.outputs.source_commit }}
+          persist-credentials: false
+
+      - name: Derive and validate release tag
+        id: metadata
+        env:
+          DISPATCH_RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_COMMIT: ${{ steps.request.outputs.source_commit }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          PACKAGE_VERSION=$(python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          path = Path("pyzxing/__version__.py")
+          module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+          values = []
+          for statement in module.body:
+              if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
+                  continue
+              target = statement.targets[0]
+              if isinstance(target, ast.Name) and target.id == "__version__":
+                  value = ast.literal_eval(statement.value)
+                  if isinstance(value, str):
+                      values.append(value)
+          if len(values) != 1:
+              raise SystemExit("pyzxing/__version__.py must define one literal __version__")
+          print(values[0])
+          PY
+          )
+          if ! [[ "$PACKAGE_VERSION" =~ ^[0-9]+([.][0-9]+){2}([A-Za-z0-9.-]*)$ ]]; then
+            echo "package version cannot form a safe release tag" >&2
+            exit 2
+          fi
+          DERIVED_RELEASE_TAG="v$PACKAGE_VERSION"
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            RELEASE_TAG="$DERIVED_RELEASE_TAG"
+          else
+            RELEASE_TAG="$DISPATCH_RELEASE_TAG"
+            test "$RELEASE_TAG" = "$DERIVED_RELEASE_TAG"
+          fi
+          printf 'release_tag=%s\n' "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
   build-twice:
     name: Clean Runner build ${{ matrix.rebuild }}
+    needs: resolve-release
+    if: >-
+      needs.resolve-release.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' &&
+        github.event.pull_request.base.ref == 'master' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        contains(github.event.pull_request.labels.*.name, 'release-candidate')))
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
+      SOURCE_COMMIT: ${{ needs.resolve-release.outputs.source_commit }}
     strategy:
       fail-fast: false
       matrix:
@@ -32,8 +125,6 @@ jobs:
 
     steps:
       - name: Validate requested commit
-        env:
-          SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
           if ! [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
             echo "source_commit must be a lowercase full commit SHA" >&2
@@ -43,12 +134,10 @@ jobs:
       - name: Check out frozen Runner source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ inputs.source_commit }}
+          ref: ${{ env.SOURCE_COMMIT }}
           persist-credentials: false
 
       - name: Verify checked-out commit
-        env:
-          SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
 
       - name: Set up Python
@@ -66,8 +155,6 @@ jobs:
         run: python scripts/verify_version_sync.py --allow-placeholders
 
       - name: Verify release tag matches package version
-        env:
-          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           PACKAGE_VERSION=$(python -c "import runpy; print(runpy.run_path('pyzxing/__version__.py')['__version__'])")
           test "$RELEASE_TAG" = "v$PACKAGE_VERSION"
@@ -95,25 +182,24 @@ jobs:
           retention-days: 7
 
   promote:
-    name: Promote canonical Runner to draft release
-    needs: build-twice
+    name: Promote canonical Runner to draft release (dispatch only)
+    needs: [resolve-release, build-twice]
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      needs.resolve-release.result == 'success' &&
+      needs.build-twice.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    concurrency:
+      group: prepare-runner-promote-${{ needs.resolve-release.outputs.release_tag }}
+      cancel-in-progress: false
     permissions:
       contents: write # Required to create the draft Release and upload canonical assets.
+    env:
+      RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
+      SOURCE_COMMIT: ${{ needs.resolve-release.outputs.source_commit }}
 
     steps:
-      - name: Check out preparation scripts
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: '3.14'
-
       - name: Download first clean build
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -127,22 +213,51 @@ jobs:
           path: rebuild-2/
 
       - name: Require byte-identical clean builds and select canonical bytes
-        env:
-          SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
-          FIRST_JAR=$(find rebuild-1 -maxdepth 1 -type f -name '*.jar' -print -quit)
-          SECOND_JAR=$(find rebuild-2 -maxdepth 1 -type f -name '*.jar' -print -quit)
-          test -n "$FIRST_JAR"
-          test -n "$SECOND_JAR"
-          test "$(basename "$FIRST_JAR")" = "$(basename "$SECOND_JAR")"
-          python scripts/verify_runner_artifact.py "$FIRST_JAR" --verify "$FIRST_JAR.sha256"
-          python scripts/verify_runner_artifact.py "$SECOND_JAR" --verify "$SECOND_JAR.sha256"
+          set -euo pipefail
+          mapfile -d '' -t FIRST_FILES < <(find rebuild-1 -maxdepth 1 -type f -print0)
+          mapfile -d '' -t SECOND_FILES < <(find rebuild-2 -maxdepth 1 -type f -print0)
+          test "${#FIRST_FILES[@]}" -eq 2
+          test "${#SECOND_FILES[@]}" -eq 2
+
+          mapfile -d '' -t FIRST_JARS < <(find rebuild-1 -maxdepth 1 -type f -name '*.jar' -print0)
+          mapfile -d '' -t SECOND_JARS < <(find rebuild-2 -maxdepth 1 -type f -name '*.jar' -print0)
+          mapfile -d '' -t FIRST_CHECKSUMS < <(find rebuild-1 -maxdepth 1 -type f -name '*.jar.sha256' -print0)
+          mapfile -d '' -t SECOND_CHECKSUMS < <(find rebuild-2 -maxdepth 1 -type f -name '*.jar.sha256' -print0)
+          test "${#FIRST_JARS[@]}" -eq 1
+          test "${#SECOND_JARS[@]}" -eq 1
+          test "${#FIRST_CHECKSUMS[@]}" -eq 1
+          test "${#SECOND_CHECKSUMS[@]}" -eq 1
+
+          FIRST_JAR=${FIRST_JARS[0]}
+          SECOND_JAR=${SECOND_JARS[0]}
+          FIRST_CHECKSUM=${FIRST_CHECKSUMS[0]}
+          SECOND_CHECKSUM=${SECOND_CHECKSUMS[0]}
+          FIRST_JAR_NAME=$(basename "$FIRST_JAR")
+          SECOND_JAR_NAME=$(basename "$SECOND_JAR")
+          [[ "$FIRST_JAR_NAME" =~ ^pyzxing-runner-[0-9]+\.[0-9]+\.[0-9]+-zxing-[0-9]+\.[0-9]+\.[0-9]+\.jar$ ]]
+          test "$FIRST_CHECKSUM" = "$FIRST_JAR.sha256"
+          test "$SECOND_CHECKSUM" = "$SECOND_JAR.sha256"
+          test "$FIRST_JAR_NAME" = "$SECOND_JAR_NAME"
+
+          verify_checksum() {
+            local jar_path=$1
+            local checksum_path=$2
+            local declared_sha256
+            test "$(wc -l < "$checksum_path")" -eq 1
+            declared_sha256=$(cut -d' ' -f1 "$checksum_path")
+            [[ "$declared_sha256" =~ ^[0-9a-f]{64}$ ]]
+            test "$(cat "$checksum_path")" = "$declared_sha256  $(basename "$jar_path")"
+            test "$(sha256sum "$jar_path" | cut -d' ' -f1)" = "$declared_sha256"
+          }
+          verify_checksum "$FIRST_JAR" "$FIRST_CHECKSUM"
+          verify_checksum "$SECOND_JAR" "$SECOND_CHECKSUM"
           cmp "$FIRST_JAR" "$SECOND_JAR"
-          cmp "$FIRST_JAR.sha256" "$SECOND_JAR.sha256"
+          cmp "$FIRST_CHECKSUM" "$SECOND_CHECKSUM"
 
           mkdir canonical
-          cp "$FIRST_JAR" "canonical/$(basename "$FIRST_JAR")"
-          cp "$FIRST_JAR.sha256" "canonical/$(basename "$FIRST_JAR").sha256"
+          cp "$FIRST_JAR" "canonical/$FIRST_JAR_NAME"
+          cp "$FIRST_CHECKSUM" "canonical/$FIRST_JAR_NAME.sha256"
           printf '%s\n' "$SOURCE_COMMIT" > canonical/runner-source-commit.txt
 
           printf 'reproducible=true\nsource_commit=%s\n' "$SOURCE_COMMIT" > canonical/runner-reproducibility.txt
@@ -150,8 +265,6 @@ jobs:
       - name: Create or validate staging draft release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
           PREPARED_RELEASE_TAG="runner-assets-$RELEASE_TAG-$SOURCE_COMMIT"
           if gh release view "$PREPARED_RELEASE_TAG" \
@@ -173,8 +286,12 @@ jobs:
               --title "$RELEASE_TAG canonical Runner assets" \
               --notes "Staging-only canonical Runner assets prepared from $SOURCE_COMMIT. The final $RELEASE_TAG tag is created later at the verified default-branch merge commit."
           fi
-          git fetch --force origin "refs/tags/$PREPARED_RELEASE_TAG:refs/tags/$PREPARED_RELEASE_TAG"
-          test "$(git rev-parse "$PREPARED_RELEASE_TAG^{commit}")" = "$SOURCE_COMMIT"
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$PREPARED_RELEASE_TAG" \
+            > staging-tag-ref.json
+          jq -e --arg source_commit "$SOURCE_COMMIT" '
+            .object.type == "commit" and
+            .object.sha == $source_commit
+          ' staging-tag-ref.json
           echo "PREPARED_RELEASE_TAG=$PREPARED_RELEASE_TAG" >> "$GITHUB_ENV"
 
       - name: Recover canonical staging assets without replacement
