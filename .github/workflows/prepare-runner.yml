@@ -266,7 +266,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           PREPARED_RELEASE_TAG="runner-assets-$RELEASE_TAG-$SOURCE_COMMIT"
+          RELEASE_EXISTS=false
           if gh release view "$PREPARED_RELEASE_TAG" \
             --json isDraft,isPrerelease,tagName > release-draft-state.json 2> release-draft-error.txt; then
             jq -e --arg tag "$PREPARED_RELEASE_TAG" '
@@ -274,24 +276,83 @@ jobs:
               .isDraft == true and
               .isPrerelease == false
             ' release-draft-state.json
+            RELEASE_EXISTS=true
           else
-            if ! grep -Fxq 'release not found' release-draft-error.txt && \
+            if ! grep -Fxq 'release not found' release-draft-error.txt &&
               ! grep -Fq 'HTTP 404' release-draft-error.txt; then
               cat release-draft-error.txt >&2
               exit 1
             fi
+          fi
+
+          TAG_EXISTS=false
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$PREPARED_RELEASE_TAG" \
+            > staging-tag-ref.json 2> staging-tag-ref-error.txt; then
+            jq -e --arg source_commit "$SOURCE_COMMIT" '
+              .object.type == "commit" and
+              .object.sha == $source_commit
+            ' staging-tag-ref.json
+            TAG_EXISTS=true
+          else
+            if ! grep -Fq 'HTTP 404' staging-tag-ref-error.txt; then
+              cat staging-tag-ref-error.txt >&2
+              exit 1
+            fi
+          fi
+
+          if [[ "$RELEASE_EXISTS" == "true" && "$TAG_EXISTS" != "true" ]]; then
+            echo "staging draft exists without its required tag" >&2
+            exit 1
+          fi
+
+          if [[ "$RELEASE_EXISTS" != "true" ]]; then
+            if [[ "$TAG_EXISTS" != "true" ]]; then
+              gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+                -f ref="refs/tags/$PREPARED_RELEASE_TAG" \
+                -f sha="$SOURCE_COMMIT" > created-staging-tag-ref.json
+              jq -e --arg tag "refs/tags/$PREPARED_RELEASE_TAG" \
+                --arg source_commit "$SOURCE_COMMIT" '
+                .ref == $tag and
+                .object.type == "commit" and
+                .object.sha == $source_commit
+              ' created-staging-tag-ref.json
+
+              TAG_VISIBLE=false
+              for ATTEMPT in 1 2 3 4 5; do
+                if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$PREPARED_RELEASE_TAG" \
+                  > staging-tag-ref.json 2> staging-tag-ref-error.txt; then
+                  TAG_VISIBLE=true
+                  break
+                fi
+                if ! grep -Fq 'HTTP 404' staging-tag-ref-error.txt; then
+                  cat staging-tag-ref-error.txt >&2
+                  exit 1
+                fi
+                if [[ "$ATTEMPT" -lt 5 ]]; then
+                  sleep 2
+                fi
+              done
+              test "$TAG_VISIBLE" = "true"
+              jq -e --arg source_commit "$SOURCE_COMMIT" '
+                .object.type == "commit" and
+                .object.sha == $source_commit
+              ' staging-tag-ref.json
+            fi
+
             gh release create "$PREPARED_RELEASE_TAG" \
               --draft \
+              --verify-tag \
               --target "$SOURCE_COMMIT" \
               --title "$RELEASE_TAG canonical Runner assets" \
               --notes "Staging-only canonical Runner assets prepared from $SOURCE_COMMIT. The final $RELEASE_TAG tag is created later at the verified default-branch merge commit."
+            gh release view "$PREPARED_RELEASE_TAG" \
+              --json isDraft,isPrerelease,tagName > release-draft-state.json
+            jq -e --arg tag "$PREPARED_RELEASE_TAG" '
+              .tagName == $tag and
+              .isDraft == true and
+              .isPrerelease == false
+            ' release-draft-state.json
           fi
-          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$PREPARED_RELEASE_TAG" \
-            > staging-tag-ref.json
-          jq -e --arg source_commit "$SOURCE_COMMIT" '
-            .object.type == "commit" and
-            .object.sha == $source_commit
-          ' staging-tag-ref.json
           echo "PREPARED_RELEASE_TAG=$PREPARED_RELEASE_TAG" >> "$GITHUB_ENV"
 
       - name: Recover canonical staging assets without replacement
