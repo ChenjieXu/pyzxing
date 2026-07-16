@@ -604,3 +604,24 @@ jobs:
               '.assets[] | select(.name == $name) | .digest // ""' \
               published-release-state.json)" = "$EXPECTED_DIGEST"
           done
+
+
+  dispatch:
+    name: Dispatch immutable release verification and PyPI publication
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # workflow_dispatch is the intentional GITHUB_TOKEN recursion exception.
+      contents: read
+
+    steps:
+      - name: Dispatch the verified immutable release
+        env:
+          DEFAULT_BRANCH: ${{ needs.verify.outputs.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh workflow run ci-cd.yml \
+            --ref "$DEFAULT_BRANCH" \
+            -f release_tag="$RELEASE_TAG"
