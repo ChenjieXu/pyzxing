@@ -185,11 +185,20 @@ reader = BarCodeReader(jar_path=runner_jar)
 CI 会冻结并执行 `scripts/pyinstaller_smoke.py`，因此该路径由真实 one-file
 程序验证，而不只是普通 Python 运行时示例。
 
-### 摄像头使用范围
+### 摄像头演示
 
-`decode_array()` 是一次性接口：每次调用都会写入临时图片并启动一个 JVM，
-不应称为实时摄像头识别。复用单一 JVM 的持久模式推迟到 1.3.0，以便单独
-设计进程生命周期、资源释放和性能指标。
+仓库提供了一个小型摄像头演示程序：使用 OpenCV 采集画面，并调用现有的
+一次性 `decode_array()` 接口抽帧识别。它不需要持久 JVM，也不需要新增
+流式 API：
+
+```bash
+pip install pyzxing opencv-python
+python scripts/webcam_demo.py --camera 0 --interval 0.5
+```
+
+按 `q` 或 Esc 退出。可用 `--possible-formats QR_CODE,DATA_MATRIX` 限定格式。
+每次抽帧识别仍会启动一个 JVM，因此 `--interval` 用来平衡响应速度与进程
+开销；这是演示程序，不代表持久流式解码器的吞吐能力。
 
 或者直接从命令行调用：
 
