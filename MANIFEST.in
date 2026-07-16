@@ -4,6 +4,8 @@ include mvnw
 include mvnw.cmd
 recursive-include .mvn *.properties
 recursive-include conda-recipe *.yaml
+recursive-include docs *.py *.rst *.txt
+prune docs/_build
 recursive-include java-runner *.java *.json *.md *.png *.xml
 recursive-include reports *.json
 recursive-include scripts *.py

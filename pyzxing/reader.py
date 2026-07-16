@@ -99,9 +99,24 @@ class FileTooLargeError(DecodeError):
 
 
 class BarCodeReader:
+    """Decode barcodes through the versioned pyzxing Java Runner.
+
+    The reader resolves a Runner lazily on the first decode. An explicit JAR is
+    used as-is, a local development build is preferred when present, and the
+    configured release asset is otherwise downloaded and checksum-verified.
+
+    :param jar_path: Optional path to a compatible executable Runner JAR.
+    :param cache_dir: Directory used for downloaded Runner assets.
+    :param timeout: Per-file Java process timeout in seconds.
+    :param max_workers: Maximum number of parallel file decodes.
+    :param build_dir: Optional local Maven output directory.
+    :param java_command: Optional Java executable path or command name.
+    :raises JavaNotFoundError: If Java cannot be found during construction.
+    """
+
     def __init__(self, jar_path=None, cache_dir=None, timeout=None,
                  max_workers=None, build_dir=None, java_command=None):
-        """Create a reader without performing network or subprocess work."""
+        """Create a reader without downloading or starting the Runner."""
         self.lib_path = osp.abspath(osp.expanduser(jar_path)) if jar_path else None
         self.cache_dir = cache_dir or Config.get_cache_dir()
         self.timeout = timeout if timeout is not None else Config.TIMEOUT_SECONDS
@@ -153,6 +168,22 @@ class BarCodeReader:
 
     def decode(self, filename_pattern, *, multi=True, try_harder=True,
                pure_barcode=False, character_set=None, possible_formats=None):
+        """Decode every file matching a path or glob pattern.
+
+        :param filename_pattern: Input path or glob pattern.
+        :param multi: Search for multiple barcodes in each image.
+        :param try_harder: Ask ZXing to spend more effort locating barcodes.
+        :param pure_barcode: Treat each input as a clean monochrome barcode.
+        :param character_set: Optional ZXing character-set hint.
+        :param possible_formats: Optional iterable of ZXing format names.
+        :return: One flat list containing every decoded barcode dictionary.
+        :raises TypeError: If a decode hint has an unsupported type.
+        :raises ValueError: If the path or a decode hint is invalid.
+        :raises FileNotFoundError: If the path or glob matches no files.
+        :raises FileTooLargeError: If an input exceeds the configured limit.
+        :raises DecodeTimeoutError: If a Runner process times out.
+        :raises DecodeError: If the Runner or protocol reports a failure.
+        """
         if not filename_pattern:
             raise ValueError("filename_pattern must be a non-empty path or glob")
 
@@ -186,6 +217,22 @@ class BarCodeReader:
 
     def decode_array(self, array, *, multi=True, try_harder=True,
                      pure_barcode=False, character_set=None, possible_formats=None):
+        """Decode a grayscale or RGB NumPy array through a temporary PNG.
+
+        OpenCV is imported only when this method is called. Decode hints and
+        result semantics are identical to :meth:`decode`.
+
+        :param array: NumPy-compatible two- or three-dimensional image array.
+        :param multi: Search for multiple barcodes in the image.
+        :param try_harder: Ask ZXing to spend more effort locating barcodes.
+        :param pure_barcode: Treat the input as a clean monochrome barcode.
+        :param character_set: Optional ZXing character-set hint.
+        :param possible_formats: Optional iterable of ZXing format names.
+        :return: One flat list containing decoded barcode dictionaries.
+        :raises ImportError: If OpenCV is not installed.
+        :raises TypeError: If a decode hint has an unsupported type.
+        :raises DecodeError: If image serialization or decoding fails.
+        """
         try:
             import cv2 as cv
         except ImportError:

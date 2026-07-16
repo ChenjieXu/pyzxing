@@ -1,4 +1,5 @@
 Unreleased
+- Reorganize the English and Chinese README files and add versioned Sphinx documentation for Read the Docs
 
 1.2.1 (17 July 2026)
 - Upgrade the bundled Jackson Databind runtime to 2.18.9 to address two high- and two medium-severity security advisories

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyzxing"
 dynamic = ["version"]
-description = "Python wrapper for ZXing Java library."
+description = "Reliable Python bindings for the ZXing barcode decoder."
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
@@ -26,6 +26,13 @@ dependencies = [
     "joblib",
     "numpy",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ChenjieXu/pyzxing"
+Documentation = "https://pyzxing.readthedocs.io/"
+Source = "https://github.com/ChenjieXu/pyzxing"
+Issues = "https://github.com/ChenjieXu/pyzxing/issues"
+Changelog = "https://github.com/ChenjieXu/pyzxing/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [
