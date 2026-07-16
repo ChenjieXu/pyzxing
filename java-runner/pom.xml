@@ -16,7 +16,7 @@
     <project.build.outputTimestamp>2026-07-16T00:00:00Z</project.build.outputTimestamp>
     <maven.compiler.release>17</maven.compiler.release>
     <zxing.version>3.5.4</zxing.version>
-    <jackson.version>2.18.4</jackson.version>
+    <jackson.version>2.18.9</jackson.version>
     <junit.version>5.11.4</junit.version>
   </properties>
 
