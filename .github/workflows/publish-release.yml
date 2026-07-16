@@ -620,6 +620,7 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ needs.verify.outputs.default_branch }}
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           gh workflow run ci-cd.yml \
