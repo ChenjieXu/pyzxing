@@ -12,7 +12,7 @@ Unreleased
 - Publish a pyzxing-owned Runner JAR, checksum, and source commit before PyPI artifacts, and coordinate verified concurrent cache writes
 - Return one flat barcode-result list for both single-file and glob decoding
 - Isolate tests from user cache directories and add security/runtime regressions
-- Document exact binary/orientation semantics, frozen PyInstaller bundling, decode-only scope, and the unverified GS1 DataBar matrix that keeps issue #43 open
+- Document binary/orientation semantics, PyInstaller bundling, decode-only scope, and format-support boundaries
 - Add synchronized package/Runner/ZXing/conda metadata gates and a provenance-first workflow that publishes only a verified draft Release
 - Package the checksum-pinned canonical Runner in the conda recipe and require a real decode during conda testing
 - Keep `decode_array()` as a one-shot API; a persistent JVM remains a separate performance optimization
