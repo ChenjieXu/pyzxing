@@ -20,8 +20,8 @@ class Config:
     JAR_URL_PREFIX = "https://github.com/ChenjieXu/pyzxing/releases/download/v{version}/"
     JAR_FILENAME = "pyzxing-runner-1.2.1-zxing-3.5.4.jar"
     # PRE-RELEASE GATE: replace both placeholders from the canonical draft asset.
-    JAR_SHA256 = "0000000000000000000000000000000000000000000000000000000000000000"
-    RUNNER_SOURCE_COMMIT = ""
+    JAR_SHA256 = "4eafc795f2474b50bf7b01d416e8890578926fcc6f9a64e83543471b95ea3565"
+    RUNNER_SOURCE_COMMIT = "4e94d9d61fc0dbe7c4616a620ee961d3a3f2c438"
     
     # Performance settings
     PARALLEL_THRESHOLD = 3  # Files below this count use sequential processing
