@@ -1,4 +1,10 @@
-1.2.0 (Unreleased)
+Unreleased
+
+1.2.1 (17 July 2026)
+- Upgrade the bundled Jackson Databind runtime to 2.18.9 to address two high- and two medium-severity security advisories
+- Add an OpenCV webcam demonstration that periodically samples frames through the existing one-shot `decode_array()` API
+
+1.2.0 (16 July 2026)
 - Replace ZXing's prose-oriented CLI with a versioned pyzxing JSONL Runner built on ZXing 3.5.4
 - Preserve the existing byte-valued result fields while adding text, raw bytes, byte segments, metadata, numeric points, and orientation source
 - Add `multi`, `try_harder`, `pure_barcode`, `character_set`, and `possible_formats` decode hints
@@ -9,10 +15,10 @@
 - Publish a pyzxing-owned Runner JAR, checksum, and source commit before PyPI artifacts, and coordinate verified concurrent cache writes
 - Return one flat barcode-result list for both single-file and glob decoding
 - Isolate tests from user cache directories and add security/runtime regressions
-- Document exact binary/orientation semantics, frozen PyInstaller bundling, decode-only scope, and the unverified GS1 DataBar matrix that keeps issue #43 open
+- Document binary/orientation semantics, PyInstaller bundling, decode-only scope, and format-support boundaries
 - Add synchronized package/Runner/ZXing/conda metadata gates and a provenance-first workflow that publishes only a verified draft Release
 - Package the checksum-pinned canonical Runner in the conda recipe and require a real decode during conda testing
-- Defer persistent-JVM camera scanning to 1.3.0; `decode_array()` remains a one-shot API
+- Keep `decode_array()` as a one-shot API; a persistent JVM remains a separate performance optimization
 - Modernize Python 3.8-3.14, PyPI Trusted Publishing, GitHub Release, and conda-forge workflows
 
 dev (17 Jan 2022)

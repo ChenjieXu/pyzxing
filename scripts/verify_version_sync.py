@@ -135,6 +135,7 @@ def main() -> int:
         "v{{ runner_version }}/{{ runner_filename }}",
         "fn: {{ runner_filename }}",
         "sha256: {{ runner_sha256 }}",
+        "{{ PYTHON }} -m pip install ./source --no-deps --no-build-isolation -vv",
     }
     for required_line in required_recipe_lines:
         if required_line not in conda_text:

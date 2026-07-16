@@ -10,7 +10,7 @@ on:
       release_tag:
         description: Existing tag and draft GitHub release to publish
         required: true
-        default: v1.2.0
+        default: v1.2.1
         type: string
 
 permissions:
@@ -125,14 +125,18 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           RUNNER_SOURCE_COMMIT=$(python scripts/verify_version_sync.py --print-runner-source-commit)
+          RUNNER_ASSET=$(python scripts/verify_version_sync.py --print-runner-filename)
           test "${#RUNNER_SOURCE_COMMIT}" = "40"
           echo "prepared_release_tag=runner-assets-$RELEASE_TAG-$RUNNER_SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "runner_asset=$RUNNER_ASSET" >> "$GITHUB_OUTPUT"
 
       - name: Verify staging draft and canonical asset set
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.IMMUTABLE_RELEASES_TOKEN }}
           PREPARED_RELEASE_TAG: ${{ steps.prepared.outputs.prepared_release_tag }}
+          RUNNER_ASSET: ${{ steps.prepared.outputs.runner_asset }}
         run: |
+          test -n "$GH_TOKEN"
           gh release view "$PREPARED_RELEASE_TAG" \
             --json assets,isDraft,isPrerelease,tagName > release-state.json
           jq -e --arg tag "$PREPARED_RELEASE_TAG" '
@@ -141,7 +145,6 @@ jobs:
             .isDraft == true
           ' release-state.json
           jq -r '.assets[].name' release-state.json > release-assets.txt
-          RUNNER_ASSET=$(python scripts/verify_version_sync.py --print-runner-filename)
           for REQUIRED_ASSET in "$RUNNER_ASSET" "$RUNNER_ASSET.sha256" runner-source-commit.txt runner-reproducibility.txt; do
             test "$(grep -Fxc "$REQUIRED_ASSET" release-assets.txt)" = "1"
           done
@@ -150,10 +153,11 @@ jobs:
 
       - name: Download canonical release assets
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.IMMUTABLE_RELEASES_TOKEN }}
           PREPARED_RELEASE_TAG: ${{ steps.prepared.outputs.prepared_release_tag }}
+          RUNNER_ASSET: ${{ steps.prepared.outputs.runner_asset }}
         run: |
-          RUNNER_ASSET=$(python scripts/verify_version_sync.py --print-runner-filename)
+          test -n "$GH_TOKEN"
           mkdir runner-dist
           gh release download "$PREPARED_RELEASE_TAG" --dir runner-dist \
             --pattern "$RUNNER_ASSET" \
@@ -311,15 +315,30 @@ jobs:
           python scripts/prepare_conda_local_recipe.py \
             --jar "runner-dist/$RUNNER_ASSET" \
             --output "$CONDA_RECIPE_COPY"
-          PACKAGE_PATH=$(conda build "$CONDA_RECIPE_COPY" \
+          python - "$CONDA_RECIPE_COPY/meta.yaml" <<'PY'
+          import sys
+          from pathlib import Path
+
+          recipe = Path(sys.argv[1])
+          text = recipe.read_text(encoding="utf-8")
+          old = "{{ PYTHON }} -m pip install source --no-deps --no-build-isolation -vv"
+          new = "{{ PYTHON }} -m pip install ./source --no-deps --no-build-isolation -vv"
+          if text.count(old) == 1:
+              recipe.write_text(text.replace(old, new, 1), encoding="utf-8")
+          elif text.count(new) != 1:
+              raise SystemExit("temporary conda recipe has an unknown source install command")
+          PY
+          PACKAGE_PATH=$(conda-build "$CONDA_RECIPE_COPY" \
             --python 3.13 \
             --output \
             --output-folder "$CONDA_OUTPUT_DIR")
-          conda build "$CONDA_RECIPE_COPY" \
+          conda-build "$CONDA_RECIPE_COPY" \
             --python 3.13 \
             --output-folder "$CONDA_OUTPUT_DIR"
           test -f "$PACKAGE_PATH"
-          conda create --yes --name pyzxing-conda-prepublish "$PACKAGE_PATH"
+          conda create --yes --name pyzxing-conda-prepublish \
+            python=3.13 numpy joblib openjdk=17
+          conda install --yes --name pyzxing-conda-prepublish "$PACKAGE_PATH"
           conda run --name pyzxing-conda-prepublish python -c "from pathlib import Path; import os; from pyzxing import BarCodeReader; root = Path(os.environ['CONDA_PREFIX']) / 'share' / 'pyzxing'; results = BarCodeReader().decode(root / 'test-data' / 'qrcode.png'); assert any(result.get('text') or result.get('raw') for result in results), results"
           test "$(sha256sum conda-recipe/meta.yaml | cut -d' ' -f1)" = "$COMMITTED_RECIPE_SHA256"
           git diff --exit-code -- conda-recipe
@@ -395,7 +414,7 @@ jobs:
             "pyzxing-$PACKAGE_VERSION.tar.gz"
 
           mkdir runner-dist
-          gh release download "$PREPARED_RELEASE_TAG" --dir runner-dist \
+          GH_TOKEN="$IMMUTABLE_RELEASES_TOKEN" gh release download "$PREPARED_RELEASE_TAG" --dir runner-dist \
             --pattern "$RUNNER_ASSET" \
             --pattern "$RUNNER_ASSET.sha256" \
             --pattern runner-source-commit.txt \
@@ -585,3 +604,24 @@ jobs:
               '.assets[] | select(.name == $name) | .digest // ""' \
               published-release-state.json)" = "$EXPECTED_DIGEST"
           done
+
+
+  dispatch:
+    name: Dispatch immutable release verification and PyPI publication
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # workflow_dispatch is the intentional GITHUB_TOKEN recursion exception.
+      contents: read
+
+    steps:
+      - name: Dispatch the verified immutable release
+        env:
+          DEFAULT_BRANCH: ${{ needs.verify.outputs.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh workflow run ci-cd.yml \
+            --ref "$DEFAULT_BRANCH" \
+            -f release_tag="$RELEASE_TAG"

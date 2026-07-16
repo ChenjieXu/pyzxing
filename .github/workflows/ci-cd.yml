@@ -7,13 +7,19 @@ on:
     branches: [master, main]
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing immutable release tag to verify and publish to PyPI
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.release.tag_name || github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'release' }}
+  group: ${{ github.workflow }}-${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'release' && github.event_name != 'workflow_dispatch' }}
 
 env:
   RUNNER_ARTIFACT_NAME: runner-distribution
@@ -28,6 +34,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ inputs.release_tag || github.ref }}
           persist-credentials: false
 
       - name: Set up Python
@@ -46,7 +53,7 @@ jobs:
 
   java-build:
     name: Build and test Runner
-    if: github.event_name != 'release'
+    if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -54,6 +61,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ inputs.release_tag || github.ref }}
           persist-credentials: false
 
       - name: Set up Python
@@ -101,7 +109,7 @@ jobs:
 
   canonical-runner:
     name: Verify canonical release Runner
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -111,7 +119,7 @@ jobs:
       - name: Check out tagged source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.release_tag }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -129,7 +137,7 @@ jobs:
       - name: Download canonical Runner assets
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: |
           mkdir runner-dist
           gh release download "$RELEASE_TAG" --dir runner-dist \
@@ -140,7 +148,7 @@ jobs:
 
       - name: Verify checksum, source commit, and committed configuration
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: |
           python scripts/verify_runner_release.py \
             --jar "runner-dist/$RUNNER_ASSET_NAME" \
@@ -152,9 +160,10 @@ jobs:
       - name: Verify Java tree stayed frozen
         run: |
           RUNNER_SOURCE_COMMIT=$(tr -d '\r\n' < runner-dist/runner-source-commit.txt)
+          RELEASE_COMMIT=$(git rev-parse HEAD)
           git cat-file -e "$RUNNER_SOURCE_COMMIT^{commit}"
-          git merge-base --is-ancestor "$RUNNER_SOURCE_COMMIT" "$GITHUB_SHA"
-          git diff --exit-code "$RUNNER_SOURCE_COMMIT" "$GITHUB_SHA" -- java-runner .mvn mvnw mvnw.cmd
+          git merge-base --is-ancestor "$RUNNER_SOURCE_COMMIT" "$RELEASE_COMMIT"
+          git diff --exit-code "$RUNNER_SOURCE_COMMIT" "$RELEASE_COMMIT" -- java-runner .mvn mvnw mvnw.cmd
 
       - name: Upload verified canonical Runner
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -202,6 +211,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ inputs.release_tag || github.ref }}
           persist-credentials: false
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -252,6 +262,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ inputs.release_tag || github.ref }}
           persist-credentials: false
 
       - name: Set up Python
@@ -305,6 +316,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ inputs.release_tag || github.ref }}
           persist-credentials: false
 
       - name: Set up Python
@@ -342,6 +354,13 @@ jobs:
   build:
     name: Build and verify release set
     needs: [lint, test, coverage, pyinstaller-smoke]
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.lint.result == 'success' &&
+      needs.test.result == 'success' &&
+      needs.coverage.result == 'success' &&
+      needs.pyinstaller-smoke.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -349,6 +368,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ inputs.release_tag || github.ref }}
           persist-credentials: false
 
       - name: Set up Python
@@ -380,9 +400,9 @@ jobs:
         run: python -m build
 
       - name: Verify release tag matches package version
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: |
           PACKAGE_VERSION=$(python -c "import runpy; print(runpy.run_path('pyzxing/__version__.py')['__version__'])")
           test "$RELEASE_TAG" = "v$PACKAGE_VERSION"
@@ -407,7 +427,7 @@ jobs:
           .venv-sdist/bin/python -I -c "import os; from pyzxing import BarCodeReader; results=BarCodeReader(jar_path=os.environ['PYZXING_TEST_JAR']).decode(os.environ['DECODE_FIXTURE']); assert results, results"
 
       - name: Upload Python distributions
-        if: github.event_name != 'release'
+        if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: python-distributions
@@ -416,7 +436,7 @@ jobs:
           retention-days: 7
 
       - name: Preserve independently rebuilt release verification distributions
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: source-built-python-distributions
@@ -426,8 +446,12 @@ jobs:
 
   conda-package-smoke:
     name: Build conda package and decode through CONDA_PREFIX
-    if: github.event_name == 'release'
     needs: build
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.build.result == 'success' &&
+      (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -438,7 +462,7 @@ jobs:
       - name: Check out tagged source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.release_tag }}
           persist-credentials: false
 
       - name: Set up pinned Miniforge
@@ -458,21 +482,41 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/verify_version_sync.py
-          PACKAGE_PATH=$(conda build conda-recipe --output --output-folder conda-output)
-          conda build conda-recipe --output-folder conda-output
+          python - conda-recipe/meta.yaml <<'PY'
+          import sys
+          from pathlib import Path
+
+          recipe = Path(sys.argv[1])
+          text = recipe.read_text(encoding="utf-8")
+          old = "{{ PYTHON }} -m pip install source --no-deps --no-build-isolation -vv"
+          new = "{{ PYTHON }} -m pip install ./source --no-deps --no-build-isolation -vv"
+          if text.count(old) == 1:
+              recipe.write_text(text.replace(old, new, 1), encoding="utf-8")
+          elif text.count(new) != 1:
+              raise SystemExit("tagged conda recipe has an unknown source install command")
+          PY
+          PACKAGE_PATH=$(conda-build conda-recipe --output --output-folder conda-output)
+          conda-build conda-recipe --output-folder conda-output
           test -f "$PACKAGE_PATH"
           echo "PACKAGE_PATH=$PACKAGE_PATH" >> "$GITHUB_ENV"
 
       - name: Smoke-test the installed package without jar_path
         run: |
           set -euo pipefail
-          conda create --yes --name pyzxing-conda-smoke "$PACKAGE_PATH"
+          conda create --yes --name pyzxing-conda-smoke \
+            python=3.13 numpy joblib openjdk=17
+          conda install --yes --name pyzxing-conda-smoke "$PACKAGE_PATH"
           conda run --name pyzxing-conda-smoke python -c "from pathlib import Path; import os; from pyzxing import BarCodeReader; root = Path(os.environ['CONDA_PREFIX']) / 'share' / 'pyzxing'; results = BarCodeReader().decode(root / 'test-data' / 'qrcode.png'); assert any(result.get('text') or result.get('raw') for result in results), results"
 
   canonical-python-distributions:
     name: Verify immutable release distributions
-    if: github.event_name == 'release'
     needs: [canonical-runner, conda-package-smoke]
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.canonical-runner.result == 'success' &&
+      needs.conda-package-smoke.result == 'success' &&
+      (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -482,7 +526,7 @@ jobs:
       - name: Check out tagged source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.release_tag }}
           persist-credentials: false
 
       - name: Set up Python
@@ -508,7 +552,7 @@ jobs:
       - name: Download exact immutable release distributions
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: |
           set -euo pipefail
           gh release view "$RELEASE_TAG" \
@@ -566,8 +610,12 @@ jobs:
 
   publish-pypi:
     name: Publish to PyPI
-    if: github.event_name == 'release'
     needs: canonical-python-distributions
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.canonical-python-distributions.result == 'success' &&
+      (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
