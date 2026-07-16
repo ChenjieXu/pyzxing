@@ -125,14 +125,18 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           RUNNER_SOURCE_COMMIT=$(python scripts/verify_version_sync.py --print-runner-source-commit)
+          RUNNER_ASSET=$(python scripts/verify_version_sync.py --print-runner-filename)
           test "${#RUNNER_SOURCE_COMMIT}" = "40"
           echo "prepared_release_tag=runner-assets-$RELEASE_TAG-$RUNNER_SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "runner_asset=$RUNNER_ASSET" >> "$GITHUB_OUTPUT"
 
       - name: Verify staging draft and canonical asset set
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.IMMUTABLE_RELEASES_TOKEN }}
           PREPARED_RELEASE_TAG: ${{ steps.prepared.outputs.prepared_release_tag }}
+          RUNNER_ASSET: ${{ steps.prepared.outputs.runner_asset }}
         run: |
+          test -n "$GH_TOKEN"
           gh release view "$PREPARED_RELEASE_TAG" \
             --json assets,isDraft,isPrerelease,tagName > release-state.json
           jq -e --arg tag "$PREPARED_RELEASE_TAG" '
@@ -141,7 +145,6 @@ jobs:
             .isDraft == true
           ' release-state.json
           jq -r '.assets[].name' release-state.json > release-assets.txt
-          RUNNER_ASSET=$(python scripts/verify_version_sync.py --print-runner-filename)
           for REQUIRED_ASSET in "$RUNNER_ASSET" "$RUNNER_ASSET.sha256" runner-source-commit.txt runner-reproducibility.txt; do
             test "$(grep -Fxc "$REQUIRED_ASSET" release-assets.txt)" = "1"
           done
@@ -150,10 +153,11 @@ jobs:
 
       - name: Download canonical release assets
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.IMMUTABLE_RELEASES_TOKEN }}
           PREPARED_RELEASE_TAG: ${{ steps.prepared.outputs.prepared_release_tag }}
+          RUNNER_ASSET: ${{ steps.prepared.outputs.runner_asset }}
         run: |
-          RUNNER_ASSET=$(python scripts/verify_version_sync.py --print-runner-filename)
+          test -n "$GH_TOKEN"
           mkdir runner-dist
           gh release download "$PREPARED_RELEASE_TAG" --dir runner-dist \
             --pattern "$RUNNER_ASSET" \
@@ -395,7 +399,7 @@ jobs:
             "pyzxing-$PACKAGE_VERSION.tar.gz"
 
           mkdir runner-dist
-          gh release download "$PREPARED_RELEASE_TAG" --dir runner-dist \
+          GH_TOKEN="$IMMUTABLE_RELEASES_TOKEN" gh release download "$PREPARED_RELEASE_TAG" --dir runner-dist \
             --pattern "$RUNNER_ASSET" \
             --pattern "$RUNNER_ASSET.sha256" \
             --pattern runner-source-commit.txt \
