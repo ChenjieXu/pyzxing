@@ -196,6 +196,7 @@ jobs:
     permissions:
       contents: write # Required to create the draft Release and upload canonical assets.
     env:
+      GH_REPO: ${{ github.repository }}
       RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
       SOURCE_COMMIT: ${{ needs.resolve-release.outputs.source_commit }}
 
