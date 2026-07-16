@@ -43,7 +43,169 @@ invalidates the prepared artifact and restarts this phase.
 
 ## 2. Prepare the canonical Runner
 
-Dispatch the preparation workflow using the frozen full commit SHA:
+While `prepare-runner.yml` is new and is not yet present on the default branch,
+bootstrap it from a same-repository pull request targeting `master`: apply the
+`release-candidate` label to the frozen candidate PR. The restricted
+`pull_request` path runs only for labeled, opened, reopened, or synchronized
+same-repository PRs that still carry that label. It binds `SOURCE_COMMIT` to the
+event's exact PR head SHA and derives `RELEASE_TAG` by parsing the literal
+`__version__` value from that checked-out commit; fork PRs and PR workflow
+inputs cannot override either value. This bootstrap path is read-only: it may
+produce the two `runner-rebuild-*` workflow artifacts, but the promotion job is
+explicitly dispatch-only and is skipped without receiving a write token on
+every PR. Remove the label before making changes that should not prepare a new
+Runner.
+
+For the one-time bootstrap, a maintainer must verify and promote the successful
+PR run locally. Do not execute scripts or JARs from the PR during this step.
+Resolve the exact run by its head SHA, then prove its identity and conclusion:
+
+```bash
+set -euo pipefail
+REPOSITORY="ChenjieXu/pyzxing"
+PR_NUMBER=52
+gh api --method GET "repos/$REPOSITORY/actions/runs" \
+  -f event=pull_request \
+  -f head_sha="$RUNNER_SOURCE_COMMIT" \
+  -f per_page=100 \
+  > prepare-runs.json
+PREPARE_RUN_ID=$(jq -r \
+  --arg path '.github/workflows/prepare-runner.yml' \
+  --arg repository "$REPOSITORY" \
+  --arg sha "$RUNNER_SOURCE_COMMIT" \
+  --argjson pr "$PR_NUMBER" '
+  [.workflow_runs[] | select(
+    .path == $path and
+    .repository.full_name == $repository and
+    .head_repository.full_name == $repository and
+    .head_sha == $sha and
+    .event == "pull_request" and
+    .status == "completed" and
+    .conclusion == "success" and
+    any(.pull_requests[]?; .number == $pr)
+  )][0].id // empty
+' prepare-runs.json)
+test -n "$PREPARE_RUN_ID"
+gh api "repos/$REPOSITORY/actions/runs/$PREPARE_RUN_ID" > prepare-run.json
+jq -e \
+  --arg path '.github/workflows/prepare-runner.yml' \
+  --arg repository "$REPOSITORY" \
+  --arg sha "$RUNNER_SOURCE_COMMIT" \
+  --argjson pr "$PR_NUMBER" '
+  .path == $path and
+  .repository.full_name == $repository and
+  .head_repository.full_name == $repository and
+  .head_sha == $sha and
+  .event == "pull_request" and
+  .status == "completed" and
+  .conclusion == "success" and
+  any(.pull_requests[]?; .number == $pr)
+' prepare-run.json
+```
+
+The workflow display name is not an identity boundary and is deliberately not
+used above: a same-name run with a different workflow path or repository must
+be rejected.
+
+Download both clean-build artifacts. Validate each checksum using only local
+system tools, then require the JARs and checksum files to be byte-identical:
+
+```bash
+set -euo pipefail
+rm -rf .release-bootstrap
+mkdir -p .release-bootstrap/rebuild-1 .release-bootstrap/rebuild-2
+gh run download "$PREPARE_RUN_ID" \
+  --name runner-rebuild-1 \
+  --dir .release-bootstrap/rebuild-1
+gh run download "$PREPARE_RUN_ID" \
+  --name runner-rebuild-2 \
+  --dir .release-bootstrap/rebuild-2
+
+FIRST_JAR=$(find .release-bootstrap/rebuild-1 -maxdepth 1 -type f -name '*.jar' -print -quit)
+SECOND_JAR=$(find .release-bootstrap/rebuild-2 -maxdepth 1 -type f -name '*.jar' -print -quit)
+test -n "$FIRST_JAR"
+test -n "$SECOND_JAR"
+test "$(find .release-bootstrap/rebuild-1 -maxdepth 1 -type f -name '*.jar' | wc -l)" -eq 1
+test "$(find .release-bootstrap/rebuild-2 -maxdepth 1 -type f -name '*.jar' | wc -l)" -eq 1
+test "$(find .release-bootstrap/rebuild-1 -maxdepth 1 -type f | wc -l)" -eq 2
+test "$(find .release-bootstrap/rebuild-2 -maxdepth 1 -type f | wc -l)" -eq 2
+test -f "$FIRST_JAR.sha256"
+test -f "$SECOND_JAR.sha256"
+test "$(wc -l < "$FIRST_JAR.sha256")" -eq 1
+test "$(wc -l < "$SECOND_JAR.sha256")" -eq 1
+
+FIRST_EXPECTED=$(cut -d' ' -f1 "$FIRST_JAR.sha256")
+SECOND_EXPECTED=$(cut -d' ' -f1 "$SECOND_JAR.sha256")
+[[ "$FIRST_EXPECTED" =~ ^[0-9a-f]{64}$ ]]
+[[ "$SECOND_EXPECTED" =~ ^[0-9a-f]{64}$ ]]
+test "$(shasum -a 256 "$FIRST_JAR" | cut -d' ' -f1)" = "$FIRST_EXPECTED"
+test "$(shasum -a 256 "$SECOND_JAR" | cut -d' ' -f1)" = "$SECOND_EXPECTED"
+test "$(basename "$FIRST_JAR")" = "$(basename "$SECOND_JAR")"
+cmp "$FIRST_JAR" "$SECOND_JAR"
+cmp "$FIRST_JAR.sha256" "$SECOND_JAR.sha256"
+```
+
+Create the four canonical files without executing the candidate, then create
+the staging tag and draft exactly once. An existing release or tag is a hard
+stop; never replace bootstrap assets:
+
+```bash
+set -euo pipefail
+RELEASE_TAG="v1.2.0"
+PREPARED_RELEASE_TAG="runner-assets-$RELEASE_TAG-$RUNNER_SOURCE_COMMIT"
+mkdir .release-bootstrap/canonical
+cp "$FIRST_JAR" ".release-bootstrap/canonical/$(basename "$FIRST_JAR")"
+cp "$FIRST_JAR.sha256" ".release-bootstrap/canonical/$(basename "$FIRST_JAR").sha256"
+printf '%s\n' "$RUNNER_SOURCE_COMMIT" > .release-bootstrap/canonical/runner-source-commit.txt
+printf 'reproducible=true\nsource_commit=%s\n' "$RUNNER_SOURCE_COMMIT" \
+  > .release-bootstrap/canonical/runner-reproducibility.txt
+test "$(find .release-bootstrap/canonical -maxdepth 1 -type f | wc -l)" -eq 4
+
+if gh release view "$PREPARED_RELEASE_TAG" > /dev/null 2> release-view-error.txt; then
+  echo "staging release already exists: $PREPARED_RELEASE_TAG" >&2
+  exit 1
+elif ! grep -Fxq 'release not found' release-view-error.txt && \
+  ! grep -Fq 'HTTP 404' release-view-error.txt; then
+  cat release-view-error.txt >&2
+  exit 1
+fi
+
+set +e
+git ls-remote --exit-code --tags origin "refs/tags/$PREPARED_RELEASE_TAG" \
+  > existing-staging-tag.txt
+TAG_LOOKUP_STATUS=$?
+set -e
+if [[ "$TAG_LOOKUP_STATUS" == 0 ]]; then
+  echo "staging tag already exists: $PREPARED_RELEASE_TAG" >&2
+  exit 1
+elif [[ "$TAG_LOOKUP_STATUS" != 2 ]]; then
+  echo "could not prove staging tag absence" >&2
+  exit "$TAG_LOOKUP_STATUS"
+fi
+
+gh release create "$PREPARED_RELEASE_TAG" \
+  .release-bootstrap/canonical/* \
+  --draft \
+  --target "$RUNNER_SOURCE_COMMIT" \
+  --title "$RELEASE_TAG canonical Runner assets" \
+  --notes "Staging-only canonical Runner assets prepared from $RUNNER_SOURCE_COMMIT."
+git fetch origin "refs/tags/$PREPARED_RELEASE_TAG:refs/tags/$PREPARED_RELEASE_TAG"
+test "$(git rev-parse "$PREPARED_RELEASE_TAG^{commit}")" = "$RUNNER_SOURCE_COMMIT"
+test "$(gh release view "$PREPARED_RELEASE_TAG" --json assets,isDraft \
+  --jq 'select(.isDraft == true) | .assets | length')" = 4
+mkdir .release-bootstrap/verified
+for ASSET_PATH in .release-bootstrap/canonical/*; do
+  ASSET_NAME=$(basename "$ASSET_PATH")
+  gh release download "$PREPARED_RELEASE_TAG" \
+    --dir .release-bootstrap/verified \
+    --pattern "$ASSET_NAME"
+  cmp "$ASSET_PATH" ".release-bootstrap/verified/$ASSET_NAME"
+done
+```
+
+For later releases, after the workflow exists on the default branch, dispatch
+it using the frozen full commit SHA. Dispatch retains the exact supplied source
+and tag inputs and fails unless the tag matches the checked-out package version:
 
 ```bash
 gh workflow run prepare-runner.yml \
@@ -51,12 +213,13 @@ gh workflow run prepare-runner.yml \
   -f release_tag="v1.2.0"
 ```
 
-The workflow builds the same source twice in clean jobs and requires both JARs
-and checksum files to be byte-identical. Any difference fails the workflow;
-there is no canonical-build-1 fallback and no draft asset is promoted. A
-successful run records only `reproducible=true`.
+Both trigger paths build the same source twice in clean jobs. The dispatch-only
+promotion requires both JARs and checksum files to be byte-identical. Any
+difference fails the workflow; there is no canonical-build-1 fallback and no
+draft asset is promoted. A successful dispatch promotion records only
+`reproducible=true`.
 
-The workflow creates or updates a staging-only draft release named
+The dispatch-only promotion creates or updates a staging-only draft release named
 `runner-assets-v1.2.0-<RUNNER_SOURCE_COMMIT>`. Its staging tag points to the
 frozen Runner source commit; the real `v1.2.0` tag is deliberately not created
 at this phase. The staging draft contains:
