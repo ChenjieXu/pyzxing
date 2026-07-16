@@ -50,12 +50,12 @@ def test_missing_java_has_actionable_error(monkeypatch, tmp_path):
 
 
 def test_runner_release_coordinates_are_versioned():
-    assert Config.RUNNER_VERSION == "1.2.0"
+    assert Config.RUNNER_VERSION == "1.2.1"
     assert Config.DEFAULT_ZXING_VERSION == "3.5.4"
-    assert Config.JAR_FILENAME == "pyzxing-runner-1.2.0-zxing-3.5.4.jar"
+    assert Config.JAR_FILENAME == "pyzxing-runner-1.2.1-zxing-3.5.4.jar"
     assert Config.get_jar_url() == (
-        "https://github.com/ChenjieXu/pyzxing/releases/download/v1.2.0/"
-        "pyzxing-runner-1.2.0-zxing-3.5.4.jar"
+        "https://github.com/ChenjieXu/pyzxing/releases/download/v1.2.1/"
+        "pyzxing-runner-1.2.1-zxing-3.5.4.jar"
     )
 
 

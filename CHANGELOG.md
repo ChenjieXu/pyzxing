@@ -1,4 +1,7 @@
 Unreleased
+
+1.2.1 (17 July 2026)
+- Upgrade the bundled Jackson Databind runtime to 2.18.9 to address two high- and two medium-severity security advisories
 - Add an OpenCV webcam demonstration that periodically samples frames through the existing one-shot `decode_array()` API
 
 1.2.0 (16 July 2026)
