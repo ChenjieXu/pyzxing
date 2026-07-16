@@ -201,10 +201,19 @@ from an actual one-file bundle rather than only from normal Python.
 
 ### Camera use
 
-`decode_array()` is a one-shot API: it writes a temporary image and starts one
-JVM per call. It is not a real-time camera loop. Persistent-JVM camera support
-is deferred to 1.3.0 so process lifecycle and resource cleanup can be designed
-and measured explicitly.
+The repository includes a small webcam demonstration that combines OpenCV
+camera capture with the existing one-shot `decode_array()` API. It does not
+require a persistent JVM or a new streaming API:
+
+```bash
+pip install pyzxing opencv-python
+python scripts/webcam_demo.py --camera 0 --interval 0.5
+```
+
+Press `q` or Esc to quit. Use `--possible-formats QR_CODE,DATA_MATRIX` to limit
+formats. Each sampled frame still starts one JVM, so `--interval` controls the
+trade-off between responsiveness and process overhead; this is a demonstration
+program, not a throughput claim about a persistent streaming decoder.
 
 Or you may simply call it from command line
 
