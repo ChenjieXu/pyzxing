@@ -1038,35 +1038,35 @@
     },
     "zxing_3_5_4": {
       "zxing_version": "3.5.4",
-      "runner_version": "1.2.0",
+      "runner_version": "1.2.1",
       "protocol": "UTF-8 JSONL schema_version 1",
-      "artifact": "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
-      "artifact_sha256": "d542daf2b3af3405ed5f949542acb287e176a3cdfd119edb504079c3033cd9cb",
+      "artifact": "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
+      "artifact_sha256": "4eafc795f2474b50bf7b01d416e8890578926fcc6f9a64e83543471b95ea3565",
       "commands": {
         "default": [
           "java",
           "-jar",
-          "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+          "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
           "{input_uri}"
         ],
         "try_harder": [
           "java",
           "-jar",
-          "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+          "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
           "{input_uri}",
           "--try-harder"
         ],
         "pure_barcode": [
           "java",
           "-jar",
-          "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+          "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
           "{input_uri}",
           "--pure-barcode"
         ],
         "qr_only": [
           "java",
           "-jar",
-          "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+          "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
           "{input_uri}",
           "--possible-formats",
           "QR_CODE"
@@ -1074,7 +1074,7 @@
         "wrapper_defaults": [
           "java",
           "-jar",
-          "pyzxing-runner-1.2.0-zxing-3.5.4.jar",
+          "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
           "{input_uri}",
           "--multi",
           "--try-harder"
