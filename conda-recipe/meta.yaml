@@ -1,10 +1,10 @@
 {% set name = "pyzxing" %}
-{% set version = "1.2.1" %}
-{% set runner_version = "1.2.1" %}
+{% set version = "1.2.2" %}
+{% set runner_version = "1.2.2" %}
 {% set zxing_version = "3.5.4" %}
-{% set runner_filename = "pyzxing-runner-1.2.1-zxing-3.5.4.jar" %}
-{% set runner_sha256 = "4eafc795f2474b50bf7b01d416e8890578926fcc6f9a64e83543471b95ea3565" %}
-{% set runner_source_commit = "4e94d9d61fc0dbe7c4616a620ee961d3a3f2c438" %}
+{% set runner_filename = "pyzxing-runner-1.2.2-zxing-3.5.4.jar" %}
+{% set runner_sha256 = "0000000000000000000000000000000000000000000000000000000000000000" %}
+{% set runner_source_commit = "" %}
 
 package:
   name: {{ name|lower }}
