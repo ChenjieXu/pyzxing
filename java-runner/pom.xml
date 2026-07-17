@@ -6,7 +6,7 @@
 
   <groupId>io.github.chenjiexu</groupId>
   <artifactId>pyzxing-runner</artifactId>
-  <version>1.2.1</version>
+  <version>1.2.2</version>
   <name>pyzxing JSONL Runner</name>
   <description>Machine-readable ZXing runner for pyzxing</description>
 

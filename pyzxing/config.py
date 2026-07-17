@@ -14,14 +14,14 @@ class Config:
     MIN_PYTHON_VERSION = '>=3.8.0'
     
     # pyzxing Runner / ZXing settings
-    RUNNER_VERSION = '1.2.1'
+    RUNNER_VERSION = '1.2.2'
     DEFAULT_ZXING_VERSION = '3.5.4'
     JAR_RELEASE_VERSION = RUNNER_VERSION
     JAR_URL_PREFIX = "https://github.com/ChenjieXu/pyzxing/releases/download/v{version}/"
-    JAR_FILENAME = "pyzxing-runner-1.2.1-zxing-3.5.4.jar"
+    JAR_FILENAME = "pyzxing-runner-1.2.2-zxing-3.5.4.jar"
     # PRE-RELEASE GATE: replace both placeholders from the canonical draft asset.
-    JAR_SHA256 = "4eafc795f2474b50bf7b01d416e8890578926fcc6f9a64e83543471b95ea3565"
-    RUNNER_SOURCE_COMMIT = "4e94d9d61fc0dbe7c4616a620ee961d3a3f2c438"
+    JAR_SHA256 = "a132a7762297e66d92683c6c5d2ef135a05f8be382798be6e7fa39254f0b5455"
+    RUNNER_SOURCE_COMMIT = "1792fa369a923fb133e98e62b160423a4367998d"
     
     # Performance settings
     PARALLEL_THRESHOLD = 3  # Files below this count use sequential processing

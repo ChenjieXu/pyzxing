@@ -69,10 +69,10 @@
   ],
   "attachment_retention": "source_url_and_sha256_only_not_committed",
   "decoder": {
-    "runner_version": "1.2.1",
+    "runner_version": "1.2.2",
     "zxing_version": "3.5.4",
-    "artifact": "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
-    "artifact_sha256": "4eafc795f2474b50bf7b01d416e8890578926fcc6f9a64e83543471b95ea3565",
+    "artifact": "pyzxing-runner-1.2.2-zxing-3.5.4.jar",
+    "artifact_sha256": "a132a7762297e66d92683c6c5d2ef135a05f8be382798be6e7fa39254f0b5455",
     "protocol": "UTF-8 JSONL schema_version 1"
   },
   "hint_matrix": {
@@ -80,7 +80,7 @@
       "command": [
         "java",
         "-jar",
-        "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
+        "pyzxing-runner-1.2.2-zxing-3.5.4.jar",
         "{attachment_file_uri}"
       ],
       "hints": {
@@ -94,7 +94,7 @@
       "command": [
         "java",
         "-jar",
-        "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
+        "pyzxing-runner-1.2.2-zxing-3.5.4.jar",
         "{attachment_file_uri}",
         "--try-harder"
       ],
@@ -109,7 +109,7 @@
       "command": [
         "java",
         "-jar",
-        "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
+        "pyzxing-runner-1.2.2-zxing-3.5.4.jar",
         "{attachment_file_uri}",
         "--possible-formats",
         "CODE_39"
@@ -127,7 +127,7 @@
       "command": [
         "java",
         "-jar",
-        "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
+        "pyzxing-runner-1.2.2-zxing-3.5.4.jar",
         "{attachment_file_uri}",
         "--try-harder",
         "--possible-formats",
@@ -146,7 +146,7 @@
       "command": [
         "java",
         "-jar",
-        "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
+        "pyzxing-runner-1.2.2-zxing-3.5.4.jar",
         "{attachment_file_uri}",
         "--pure-barcode"
       ],
@@ -161,7 +161,7 @@
       "command": [
         "java",
         "-jar",
-        "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
+        "pyzxing-runner-1.2.2-zxing-3.5.4.jar",
         "{attachment_file_uri}",
         "--multi",
         "--try-harder"
@@ -177,7 +177,7 @@
       "command": [
         "java",
         "-jar",
-        "pyzxing-runner-1.2.1-zxing-3.5.4.jar",
+        "pyzxing-runner-1.2.2-zxing-3.5.4.jar",
         "{attachment_file_uri}",
         "--multi",
         "--try-harder",

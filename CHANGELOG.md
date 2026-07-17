@@ -1,4 +1,8 @@
 Unreleased
+
+1.2.2 (17 July 2026)
+- Restore automatic Runner downloads with newly versioned immutable release coordinates
+- Rebuild the canonical ZXing 3.5.4 Runner and publish synchronized Python and conda metadata
 - Reorganize the English and Chinese README files and add versioned Sphinx documentation for Read the Docs
 
 1.2.1 (17 July 2026)

@@ -10,7 +10,7 @@ on:
       release_tag:
         description: Existing tag and draft GitHub release to publish
         required: true
-        default: v1.2.1
+        default: v1.2.2
         type: string
 
 permissions:
