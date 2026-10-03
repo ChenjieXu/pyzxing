@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from pyzxing import BarCodeReader
 from pyzxing.config import Config
+from pyzxing.utils import get_file, sha256
 
 
 @pytest.fixture
@@ -55,6 +56,22 @@ def test_runner_jar():
             f"{path}"
         )
     return path
+
+
+@pytest.fixture(scope="session")
+def canonical_release_jar(test_runner_jar, tmp_path_factory):
+    """Return the published Runner referenced by historical evidence reports."""
+    if sha256(test_runner_jar) == Config.JAR_SHA256:
+        return test_runner_jar
+
+    cache_dir = tmp_path_factory.mktemp("canonical-runner")
+    downloaded = get_file(
+        Config.JAR_FILENAME,
+        Config.get_jar_url(),
+        cache_dir=str(cache_dir),
+        expected_sha256=Config.JAR_SHA256,
+    )
+    return Path(downloaded).resolve()
 
 
 @pytest.fixture

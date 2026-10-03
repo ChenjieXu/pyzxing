@@ -56,3 +56,7 @@ version = {attr = "pyzxing.__version__.__version__"}
 
 [tool.setuptools.package-dir]
 "" = "."
+
+[tool.ruff.lint]
+# Keep the project's established correctness checks stable across Ruff upgrades.
+select = ["E4", "E7", "E9", "F"]

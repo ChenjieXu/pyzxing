@@ -33,7 +33,7 @@ def sha256(path):
     return digest.hexdigest()
 
 
-def test_issue_34_gb18030_without_eci(barcode_reader, test_runner_jar):
+def test_issue_34_gb18030_without_eci(barcode_reader, canonical_release_jar):
     payload = "生产许可证号：测试-123"
     payload_bytes = bytes.fromhex(
         "c9fab2fad0edbfc9d6a4bac5a3bab2e2cad42d313233"
@@ -58,7 +58,7 @@ def test_issue_34_gb18030_without_eci(barcode_reader, test_runner_jar):
     assert explicit["byte_segments"] == [payload_bytes]
     assert explicit["metadata"]["character_set"] == "GB18030"
     assert sha256(ISSUE_34_FIXTURE) == ISSUE_34_REPORT["fixture"]["sha256"]
-    assert sha256(test_runner_jar) == ISSUE_34_REPORT["decoder"]["artifact_sha256"]
+    assert sha256(canonical_release_jar) == ISSUE_34_REPORT["decoder"]["artifact_sha256"]
 
 
 def test_known_good_data_matrix(barcode_reader):
@@ -75,7 +75,7 @@ def test_known_good_data_matrix(barcode_reader):
     assert all(isinstance(point, tuple) for point in result["points"])
 
 
-def test_issue_35_assessment_is_internally_consistent(test_runner_jar):
+def test_issue_35_assessment_is_internally_consistent(canonical_release_jar):
     report = ISSUE_35_REPORT
     expected_attachments = {
         "A": {
@@ -138,7 +138,7 @@ def test_issue_35_assessment_is_internally_consistent(test_runner_jar):
         }
         for result in report["results"]["B"]["cases"].values()
     )
-    assert sha256(test_runner_jar) == report["decoder"]["artifact_sha256"]
+    assert sha256(canonical_release_jar) == report["decoder"]["artifact_sha256"]
 
 
 @pytest.mark.parametrize("kind,barcode_format", [
@@ -193,7 +193,7 @@ def test_issue_38_representatives_decode_as_pure_qr(barcode_reader, fixture):
     assert result["text"] == str(fixture["value"])
 
 
-def test_issue_38_report_is_internally_consistent(test_runner_jar):
+def test_issue_38_report_is_internally_consistent(canonical_release_jar):
     report = ISSUE_38_REPORT
     corpus = report["corpus"]["values"]
 
@@ -227,6 +227,6 @@ def test_issue_38_report_is_internally_consistent(test_runner_jar):
     assert report["decoders"]["zxing_3_5_4"]["modes"]["pure_barcode"][
         "success_count"
     ] == 192
-    assert sha256(test_runner_jar) == report["decoders"]["zxing_3_5_4"][
+    assert sha256(canonical_release_jar) == report["decoders"]["zxing_3_5_4"][
         "artifact_sha256"
     ]
