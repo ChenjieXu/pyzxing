@@ -12,6 +12,7 @@ import sys
 import uuid
 from pathlib import Path
 
+import numpy as np
 from joblib import Parallel, delayed
 
 from .config import Config
@@ -230,7 +231,8 @@ class BarCodeReader:
         :param possible_formats: Optional iterable of ZXing format names.
         :return: One flat list containing decoded barcode dictionaries.
         :raises ImportError: If OpenCV is not installed.
-        :raises TypeError: If a decode hint has an unsupported type.
+        :raises TypeError: If the array is not two- or three-dimensional,
+            or a decode hint has an unsupported type.
         :raises DecodeError: If image serialization or decoding fails.
         """
         try:
@@ -238,6 +240,13 @@ class BarCodeReader:
         except ImportError:
             logging.error("OpenCV not installed. Install opencv-python to use decode_array().")
             raise
+
+        array = np.asarray(array)
+        if array.ndim not in (2, 3):
+            raise TypeError(
+                "array must be a two- or three-dimensional image array, "
+                f"got {array.ndim} dimensions"
+            )
 
         temp_dir = Config.get_temp_dir()
         os.makedirs(temp_dir, exist_ok=True)
