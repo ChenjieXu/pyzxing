@@ -3,6 +3,7 @@ Test edge cases and error handling.
 """
 import os
 import shutil
+import numpy as np
 import pytest
 from pyzxing import BarCodeReader, DecodeError
 from pyzxing.platform_utils import PlatformUtils
@@ -46,6 +47,20 @@ class TestEdgeCases:
             expected = stream.readline().strip()
 
         assert result[0]['parsed'] == expected
+
+
+class TestDecodeArrayValidation:
+    """decode_array input-shape validation (no Java Runner needed)."""
+
+    def test_1d_array_raises_type_error(self):
+        reader = BarCodeReader(java_command="java")
+        with pytest.raises(TypeError, match="two- or three-dimensional"):
+            reader.decode_array(np.zeros((10,), dtype=np.uint8))
+
+    def test_4d_array_raises_type_error(self):
+        reader = BarCodeReader(java_command="java")
+        with pytest.raises(TypeError, match="two- or three-dimensional"):
+            reader.decode_array(np.zeros((2, 2, 2, 2), dtype=np.uint8))
 
 
 class TestPlatformUtils:
